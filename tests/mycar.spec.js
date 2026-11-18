@@ -1,7 +1,6 @@
 const { test, expect } = require('@playwright/test');
 
-// All tests use dummy records in the browser memory. They never authenticate,
-// write Supabase data, or use the user's actual vehicle records.
+// QA fixture only. No Supabase credentials, no real account and no production writes.
 const fixture = {
   activeVehicleId: 'v-test',
   vehicles: [{ id: 'v-test', name: 'QA Test Car', plate: 'TEST123', defaultFuel: 'RON95', currentOdometer: 1100, tireMileageLimit: 40000, lastTireChangeOdometer: 0 }],
@@ -12,13 +11,32 @@ const fixture = {
   other: [{ id: 'other-a', vehicleId: 'v-test', date: '2026-10-11', description: 'QA Car Wash', cost: 7, notes: 'QA dummy' }]
 };
 
-async function loadDummyApp(page) {
-  // Explicitly prohibit all requests to Supabase; no credentials are used.
+// Replace only auth and cloud-sync modules in the TEST browser, not in app files.
+// This avoids asynchronous auth restoration/navigations changing the page during tests.
+async function isolateApp(page) {
   let cloudRequests = 0;
   await page.route(/https?:\/\/[^/]*\.supabase\.co\//, route => {
     cloudRequests++;
     return route.abort('blockedbyclient');
   });
+  await page.route(/\/auth\.js(?:\?.*)?$/, route => route.fulfill({
+    status: 200, contentType: 'application/javascript',
+    body: `const AuthManager = {
+      init: () => {},
+      get currentUser() { return null; },
+      get projectId() { return 'qa-local-only'; },
+      signOut: () => {},
+      showPasswordUpdate: () => {},
+      getAccessToken: async () => { throw new Error('QA: network authentication disabled'); }
+    };`
+  }));
+  await page.route(/\/cloud-sync\.js(?:\?.*)?$/, route => route.fulfill({
+    status: 200, contentType: 'application/javascript',
+    body: `const MYCARCloud = {
+      start: () => {}, stop: () => {}, syncNow: () => {}, onLocalChange: () => {},
+      get pendingCount() { return 0; }
+    };`
+  }));
   await page.route('https://open.er-api.com/**', route => route.fulfill({
     status: 200, contentType: 'application/json', body: JSON.stringify({
       result: 'success', base_code: 'MYR',
@@ -26,13 +44,16 @@ async function loadDummyApp(page) {
       rates: { MYR: 1, USD: 0.25, THB: 8 }
     })
   }));
-  await page.goto('/index.html');
+  return () => cloudRequests;
+}
+
+async function loadDummyApp(page) {
+  const cloudRequests = await isolateApp(page);
+  await page.goto('/index.html', { waitUntil: 'load' });
   await expect(page.locator('#mycar-app-shell')).toHaveCount(1);
+  // Wait for defer scripts + DOMContentLoaded to finish before injecting fixture.
+  await expect.poll(() => page.evaluate(() => typeof switchTab === 'function' && typeof updateVehicleSelector === 'function')).toBe(true);
   await page.evaluate(data => {
-    // app.js defines these on the page; they are accessed only in the isolated test page.
-    if (typeof switchTab !== 'function' || typeof updateVehicleSelector !== 'function') {
-      throw new Error('MYCAR application JavaScript did not load');
-    }
     dbData = JSON.parse(JSON.stringify(data));
     initYearFilter();
     document.querySelector('#filter-year').value = 'all';
@@ -42,12 +63,15 @@ async function loadDummyApp(page) {
     document.querySelector('#mycar-app-shell').hidden = false;
     switchTab('dashboard');
   }, fixture);
-  return () => cloudRequests;
+  await expect(page.locator('#mycar-app-shell')).toBeVisible();
+  // A fixture integrity check distinguishes harness failures from app failures.
+  expect(await page.evaluate(() => dbData.other[0].cost)).toBe(7);
+  return cloudRequests;
 }
 
 test('login screen is reachable without test credentials', async ({ page }) => {
-  await page.route(/https?:\/\/[^/]*\.supabase\.co\//, route => route.abort('blockedbyclient'));
-  await page.goto('/index.html');
+  await isolateApp(page);
+  await page.goto('/index.html', { waitUntil: 'load' });
   await expect(page.locator('#auth-screen')).toBeVisible();
   await expect(page.locator('#auth-email')).toBeVisible();
 });
