@@ -369,6 +369,13 @@
             });
 
             refreshActiveView();
+            // The five tabs share #main-content as their scroll container.
+            // Always open a selected tab at its heading, regardless of the prior tab position.
+            const scrollRegion = document.getElementById('main-content');
+            if (scrollRegion) {
+                scrollRegion.scrollTop = 0;
+                scrollRegion.scrollLeft = 0;
+            }
         }
 
         function changeFilter() {
@@ -507,8 +514,8 @@
 
             const ctCost = document.getElementById('card-tax-cost');
             const ctCount = document.getElementById('card-tax-count');
-            if (ctCost) ctCost.textContent = money(totalTax);
-            if (ctCount) ctCount.textContent = `${taxes.length} logs`;
+            if (ctCost) ctCost.textContent = money(totalTax + others.reduce((sum, item) => sum + (Number(item.cost) || 0), 0));
+            if (ctCount) ctCount.textContent = `${taxes.length + others.length} logs`;
 
             const coCost = document.getElementById('card-other-cost');
             const coCount = document.getElementById('card-other-count');
