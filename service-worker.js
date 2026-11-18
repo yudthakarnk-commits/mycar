@@ -1,13 +1,13 @@
 /* MYCAR 3.2 - network-first shell updates, offline fallback, scoped caching. */
-const CACHE='mycar-shell-cloud-v10-grouped-bars-3-3-1';
-const VERSION='3.3.1';
+const CACHE='mycar-shell-cloud-v12-iphone-3-3-3';
+const VERSION='3.3.3';
 const ASSETS=[
-  './','./index.html','./app.js?v=3.3.1','./auth.js?v=3.3.1',
-  './auth-config.js','./cloud-sync.js?v=3.3.1',
-  './assets/app.css?v=3.3.1','./assets/car-photos.css?v=3.3.1',
-  './assets/tng-import.css?v=3.3.1','./assets/auth.css?v=3.3.1',
-  './tng-import.js?v=3.3.1','./vehicle-photos.js?v=3.3.1',
-  './assets/toyota-corolla-cross-3q.webp',
+  './','./index.html','./app.js?v=3.3.3','./auth.js?v=3.3.3',
+  './auth-config.js','./cloud-sync.js?v=3.3.3',
+  './assets/app.css?v=3.3.3','./assets/car-photos.css?v=3.3.3',
+  './assets/tng-import.css?v=3.3.3','./assets/auth.css?v=3.3.3',
+  './tng-import.js?v=3.3.3','./vehicle-photos.js?v=3.3.3',
+  './assets/toyota-corolla-cross-3q.webp', './assets/mobile-viewport-fix.css?v=3.3.3',
   './manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'
 ];
 const SCOPE=new URL(self.registration.scope).pathname;
