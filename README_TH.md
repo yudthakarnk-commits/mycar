@@ -63,3 +63,12 @@
 `index.html`, `app.js`, `vehicle-photos.js`, `tng-import.js`, `cloud-sync.js`, `service-worker.js`, `assets/car-photos.css`, `assets/tng-import.css`, ไฟล์อื่น ๆ ในชุดเดิม
 
 ไม่ควรใส่ Supabase Secret/Service Role หรือรหัสผ่าน PDF ลงใน JavaScript ที่เผยแพร่บน GitHub
+
+
+## MYCAR v3.1 — รูปรถและการอัปเดตมือถือ
+- หน้า Summary เปลี่ยนรูป Corolla Cross ที่เป็นภาพเต็มพร้อมฉากหลัง ให้เป็นภาพประกอบ 3/4 พื้นหลังโปร่งใสทางขวาของยอดเงิน (ภาพประกอบ ไม่ใช่ภาพยืนยันสีหรือรุ่นย่อยของรถจริง)
+- ผู้ใช้ยังเลือกภาพอื่นหรืออัปโหลดเองได้ตามเดิม; ภาพจาก Wikimedia จะมีข้อความเครดิตขนาดเล็ก
+- Service Worker ตรวจเวอร์ชันใหม่เมื่อเข้าเว็บและเมื่อกลับมาหน้าแอป พร้อมโหลดไฟล์ล่าสุดเมื่อออนไลน์ และเก็บเวอร์ชันแคชไว้ใช้ตอนออฟไลน์
+- อัปโหลดไฟล์ทั้งหมดจาก ZIP ไปยัง GitHub ใน repository `mycar` (เลือกแทนที่ไฟล์ชื่อเดิม) ไม่มีการแก้ไข Supabase, ไม่ต้องรัน SQL
+- หาก PWA ยังแสดงหน้าเก่าหลัง GitHub Pages Deploy ให้เปิดผ่าน Chrome URL `https://yudthakarnk-commits.github.io/mycar/?v=3.1.0` หนึ่งครั้งแล้วเปิดจากไอคอนอีกครั้ง การ logout/login ไม่เกี่ยวกับการรีเฟรชโค้ด
+- ก่อนอัปเดตแนะนำ Export Backup (JSON) เพื่อสำรองข้อมูลส่วนตัว

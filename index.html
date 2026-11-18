@@ -11,13 +11,22 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYCAR">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./assets/auth.css">
+    <link rel="stylesheet" href="./assets/auth.css?v=3.1.0">
     <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
     <!-- Precompiled Tailwind CSS (offline-ready) -->
-    <link rel="stylesheet" href="./assets/app.css">
-    <link rel="stylesheet" href="./assets/car-photos.css">
-    <link rel="stylesheet" href="./assets/tng-import.css">
+    <link rel="stylesheet" href="./assets/app.css?v=3.1.0">
+    <link rel="stylesheet" href="./assets/car-photos.css?v=3.1.0">
+    <link rel="stylesheet" href="./assets/tng-import.css?v=3.1.0">
+    <!-- MYCAR v3.1: critical hero layout is inline to avoid a mixed-cache layout. -->
+    <style id="mycar-v31-critical-layout">
+      .mycar-hero-main{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(104px,43%)!important;align-items:center!important;gap:4px!important;min-height:112px!important}
+      .mycar-hero-amount{flex:initial!important;min-width:0;max-width:100%;align-self:center;position:relative;z-index:2}
+      .mycar-hero-amount h2{font-size:clamp(1.35rem,5.4vw,2.15rem)!important;letter-spacing:-.045em!important;line-height:1.15;white-space:nowrap}
+      .mycar-car-photo{display:flex!important;flex:initial!important;align-items:center;justify-content:center;justify-self:stretch;width:100%;height:113px!important;max-height:124px;margin:0!important;border:0!important;border-radius:0;background:none!important;padding:2px 0 5px;overflow:visible!important}
+      .mycar-car-photo img{display:block;width:100%;height:100%;object-fit:contain!important;object-position:center;background:transparent!important;filter:none!important}
+      @media(max-width:365px){.mycar-hero-main{grid-template-columns:minmax(0,1fr) minmax(99px,42%)!important;min-height:98px!important}.mycar-hero-amount h2{font-size:1.28rem!important}.mycar-car-photo{height:97px!important}}
+    </style>
     <!-- Icons are bundled as accessible inline SVGs -->
     
     <!-- Local system typography -->
@@ -638,6 +647,8 @@
                         <input type="text" disabled value="Malaysian Ringgit (RM)" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-600 font-bold">
                     </div>
                     <div class="pt-2 space-y-2">
+                        <div class="text-center text-[11px] text-slate-500">MYCAR v3.1.0 · PWA auto-update enabled</div>
+                        <button type="button" onclick="checkMYCARUpdates()" class="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold py-2.5 rounded-xl text-xs transition">Check for app updates</button>
                         <button id="install-app-btn" onclick="installMYCAR()" class="hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition">Install MYCAR App</button>
                         <p id="install-hint" class="text-[11px] text-slate-500">On Android: browser menu → Install app. On iPhone: Share → Add to Home Screen.</p>
                         <div class="text-[11px] text-amber-800 bg-amber-50 rounded-xl p-2.5">Records automatically sync to your private Supabase account every 15 seconds and after changes. Offline edits are queued locally. Changes made simultaneously to the same record use last-write-wins. Keep a JSON backup regularly.</div>
@@ -692,10 +703,10 @@
 
     <!-- JavaScript Application Logic -->
     <script src="./auth-config.js" defer></script>
-    <script src="./auth.js" defer></script>
-    <script src="./cloud-sync.js" defer></script>
-    <script src="./app.js" defer></script>
-    <script src="./vehicle-photos.js" defer></script>
-    <script src="./tng-import.js" defer></script>
+    <script src="./auth.js?v=3.1.0" defer></script>
+    <script src="./cloud-sync.js?v=3.1.0" defer></script>
+    <script src="./app.js?v=3.1.0" defer></script>
+    <script src="./vehicle-photos.js?v=3.1.0" defer></script>
+    <script src="./tng-import.js?v=3.1.0" defer></script>
 </body>
 </html>

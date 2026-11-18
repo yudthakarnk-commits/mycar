@@ -5,13 +5,15 @@
 const MYCARVehiclePhotos = (() => {
   const WIKI_API='https://commons.wikimedia.org/w/api.php';
   const PHOTO_CACHE = new Map();
+  const COROLLA_CUTOUT_URL='./assets/toyota-corolla-cross-3q.webp';
+  const COROLLA_CUTOUT={url:COROLLA_CUTOUT_URL,source:'',credit:'Illustrative vehicle image',license:'',label:'Corolla Cross · transparent 3/4 view',isCutout:true};
   const IMAGE_FIELDS = ['photoUrl','photoSource','photoCredit','photoLicense'];
   let picker=null, pickerRequest=0, shownCar='', inMigration=false;
   const e = id => document.getElementById(id);
   const normalize = text => String(text||'').replace(/\b(?:19|20)\d\d\b/g,'').replace(/\s+/g,' ').trim();
   const isModel = name => normalize(name).split(' ').filter(Boolean).length>=2 && normalize(name).toLowerCase()!=='my car';
   const fileFromWikimedia = url => {try { const u=new URL(url);return u.protocol==='https:' && (u.hostname==='upload.wikimedia.org' || u.hostname==='commons.wikimedia.org');}catch{return false;}};
-  const safePhoto = url => typeof url==='string' && (fileFromWikimedia(url) || /^data:image\/(jpeg|png|webp);base64,[a-zA-Z0-9+/=]{20,250000}$/.test(url));
+  const safePhoto = url => typeof url==='string' && (url===COROLLA_CUTOUT_URL || fileFromWikimedia(url) || /^data:image\/(jpeg|png|webp);base64,[a-zA-Z0-9+/=]{20,250000}$/.test(url));
   const normalizePlate = v => String(v||'').replace(/\s+/g,'').toUpperCase();
 
   // A known visual *reference*, not a claim about the owner's exact paint/trim.
@@ -50,7 +52,12 @@ const MYCARVehiclePhotos = (() => {
   }
 
   function photoFromVehicle(v) {
-    if (safePhoto(v?.photoUrl)) return {url:v.photoUrl,source:v.photoSource||'',credit:v.photoCredit||'Your chosen photo',license:v.photoLicense||'',label:'Saved photo'};
+    const corolla=!!getFixedSource(v);
+    // An existing v3 default Wikimedia reference is superseded visually by the
+    // clean, locally hosted 3/4 cutout, without changing the user's vehicle row.
+    const oldDefault=corolla && (v?.photoUrl===COROLLA_PHOTO.url || v?.photoSource===COROLLA_PHOTO.source);
+    if (corolla && (!v?.photoUrl || oldDefault)) return COROLLA_CUTOUT;
+    if (safePhoto(v?.photoUrl)) return {url:v.photoUrl,source:v.photoSource||'',credit:v.photoCredit||'Your chosen photo',license:v.photoLicense||'',label:'Saved photo',isCutout:v.photoUrl===COROLLA_CUTOUT_URL};
     return getFixedSource(v) || PHOTO_CACHE.get(normalize(v?.name).toLowerCase())?.[0] || null;
   }
   function showImage(photo, vehicle) {
@@ -61,17 +68,17 @@ const MYCARVehiclePhotos = (() => {
     }
     img.onload=()=>{if(shownCar===vehicle.id){img.hidden=false;placeholder.hidden=true;}};
     img.onerror=()=>{if(shownCar===vehicle.id){img.hidden=true;placeholder.hidden=false;credit.hidden=true;}};
-    img.alt=`Reference image for ${vehicle.name}`;
+    img.alt=photo.isCutout?`Three-quarter illustration of ${vehicle.name}`:`Vehicle reference photo for ${vehicle.name}`;
+    img.classList.toggle('is-cutout',!!photo.isCutout || photo.url===COROLLA_CUTOUT_URL);
     if(img.getAttribute('src')!==photo.url){img.hidden=false;placeholder.hidden=true;img.src=photo.url;}
     else if(img.complete && img.naturalWidth>0){img.hidden=false;placeholder.hidden=true;}
     credit.replaceChildren();
-    const title=document.createElement('span');title.textContent='Model reference · ';
-    credit.append(title);
+    // Creative cutouts and the user's own photos do not need a large caption.
+    // When showing a Creative Commons image, preserve compact attribution.
     if(photo.source && fileFromWikimedia(photo.source)){
       const a=document.createElement('a');a.href=photo.source;a.target='_blank';a.rel='noopener noreferrer';a.textContent=[photo.credit,photo.license].filter(Boolean).join(' · ')||'Wikimedia Commons';
-      credit.append(a);
-    } else {const t=document.createElement('span');t.textContent=photo.credit||'Personal photo';credit.append(t);}
-    credit.hidden=false;
+      a.title='Image attribution and licence';credit.append(a);credit.hidden=false;
+    } else credit.hidden=true;
   }
 
   function render() {
@@ -154,7 +161,7 @@ const MYCARVehiclePhotos = (() => {
     holder.replaceChildren();status.textContent='Searching Wikimedia Commons images…';
     let matches=[];
     const car=getVehicle();
-    if(car && normalize(query).toLowerCase() === normalize(car.name).toLowerCase() && getFixedSource(car)) matches.push(getFixedSource(car));
+    if(car && normalize(query).toLowerCase() === normalize(car.name).toLowerCase() && getFixedSource(car)) matches.push(COROLLA_CUTOUT,getFixedSource(car));
     try{matches.push(...await findPhotos(query));}
     catch(err){if(myRequest!==pickerRequest)return;status.textContent='Search is unavailable (internet may be offline). You can upload your own photo.';}
     if(myRequest!==pickerRequest||dialog.hidden)return;

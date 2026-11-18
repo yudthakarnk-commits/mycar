@@ -86,9 +86,48 @@
             document.getElementById('install-app-btn')?.classList.add('hidden');
         }
         if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-            window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(console.warn));
+            // A new worker takes control after install. Reload once so a standalone
+            // Android PWA gets the new shell without sign-out, reinstall or cache clear.
+            let changedController=false;
+            navigator.serviceWorker.addEventListener('controllerchange',()=>{
+                if(changedController)return;
+                changedController=true;
+                const versionKey='mycar-sw-loaded-v3.1.0';
+                const editorOpen=['app-modal','vehicle-modal','tng-import-modal'].some(id=>{
+                    const element=document.getElementById(id);
+                    return !!element && !element.classList.contains('hidden') && !element.hidden;
+                });
+                if(!editorOpen && sessionStorage.getItem(versionKey)!=='yes'){
+                    sessionStorage.setItem(versionKey,'yes');
+                    window.location.reload();
+                } else if (editorOpen && typeof showToast==='function') {
+                    showToast('App update ready. Finish your record, then reopen MYCAR.');
+                }
+            });
+            window.addEventListener('load',async()=>{
+                try {
+                    const registration=await navigator.serviceWorker.register('./service-worker.js',{updateViaCache:'none'});
+                    await registration.update();
+                    // Check on foreground return; throttle via browser's update logic.
+                    document.addEventListener('visibilitychange',()=>{
+                        if(!document.hidden && navigator.onLine) registration.update().catch(console.warn);
+                    });
+                }catch(error){console.warn('App update check failed',error);}
+            });
         }
 
+
+        async function checkMYCARUpdates() {
+            if (!navigator.onLine) { showToast('Connect to internet to check for updates'); return; }
+            try {
+                const registration=await navigator.serviceWorker?.getRegistration();
+                if (registration) await registration.update();
+            } catch(error) {console.warn('Update check failed',error);}
+            // Changing the query string bypasses the old cache-first v3 worker.
+            const url=new URL(window.location.href);
+            url.searchParams.set('v','3.1.0');
+            window.location.assign(url.href);
+        }
 
         function showToast(msg) {
             const toast = document.getElementById('toast');

@@ -9,3 +9,10 @@
 - Bump service worker shell cache to v6.
 
 This version does not require new database tables or a Supabase SQL migration.
+
+## v3.1.0 — vehicle hero cutout + Android PWA refresh
+- Replace default full-scene Corolla Cross reference image with an original generated transparent 3/4 view illustration (not the owner's exact vehicle).
+- Place compact car cutout on right side of total-expense amount; retain text and mileage panel, compact photo attribution for Wikimedia alternatives.
+- Keep original Wikimedia selection available in photo picker and preserve custom user photos. No Supabase data migration or SQL changes.
+- Bump service-worker cache, load online assets network-first, update registration on foreground, and reload once when a new worker controls the app. Scope cleanup to MYCAR caches only.
+- Use versioned app asset URLs to recover from previously cached CSS/JS mismatch.
