@@ -11,13 +11,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYCAR">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./assets/auth.css?v=3.3.3">
+    <link rel="stylesheet" href="./assets/auth.css?v=3.4.1">
     <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
     <!-- Precompiled Tailwind CSS (offline-ready) -->
-    <link rel="stylesheet" href="./assets/app.css?v=3.3.3">
-    <link rel="stylesheet" href="./assets/car-photos.css?v=3.3.3">
-    <link rel="stylesheet" href="./assets/tng-import.css?v=3.3.3">
+    <link rel="stylesheet" href="./assets/app.css?v=3.4.1">
+    <link rel="stylesheet" href="./assets/car-photos.css?v=3.4.1">
+    <link rel="stylesheet" href="./assets/tng-import.css?v=3.4.1">
     <!-- MYCAR v3.1: critical hero layout is inline to avoid a mixed-cache layout. -->
     <style id="mycar-v31-critical-layout">
       .mycar-hero-main{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(104px,43%)!important;align-items:center!important;gap:4px!important;min-height:112px!important}
@@ -97,7 +97,58 @@
       .mycar-v33-month:focus-visible .mycar-v33-hit{stroke:#064e3b;stroke-width:2}
       @media(max-width:390px){#fields-tax .grid{grid-template-columns:1fr}}
     </style>
-    <link rel="stylesheet" href="./assets/mobile-viewport-fix.css?v=3.3.3">
+    <link rel="stylesheet" href="./assets/mobile-viewport-fix.css?v=3.4.1">
+
+    <style id="mycar-v341-header-style">
+      /* Compact header: logo + vehicle/plate on left, status + 3 actions on right. */
+      #mycar-app-shell > header.mycar-v341-header {
+        box-sizing:border-box;display:flex!important;align-items:center;justify-content:space-between;
+        gap:6px;width:100%;max-width:100%;min-width:0;
+        padding:10px max(10px,env(safe-area-inset-right)) 10px max(10px,env(safe-area-inset-left));
+        flex:0 0 auto;overflow:visible;grid-template-columns:none!important;
+      }
+      .mycar-v341-header .mycar-v341-identity {
+        display:flex;align-items:center;gap:9px;flex:1 1 0%;width:auto!important;min-width:0;max-width:100%;
+      }
+      .mycar-v341-header .mycar-v341-logo {
+        flex:0 0 51px;width:51px;height:51px;border-radius:14px;
+        background:linear-gradient(135deg,#142737,#25374c);border:1px solid rgba(52,211,153,.48);
+        box-shadow:0 2px 12px rgba(0,0,0,.16);display:flex;flex-direction:column;
+        align-items:center;justify-content:center;line-height:1.02;
+      }
+      .mycar-v341-header .mycar-v341-logo span {font-size:18px;font-weight:900;letter-spacing:-.04em;color:#34d399}
+      .mycar-v341-header .mycar-v341-logo small {font-size:14px;font-weight:650;letter-spacing:.015em;color:#f8fafc}
+      .mycar-v341-header .mycar-v341-vehicle {min-width:0;flex:1 1 auto;max-width:100%;overflow:hidden}
+      #mycar-app-shell .mycar-v341-header #header-vehicle-select {
+        display:block;box-sizing:border-box;width:100%!important;min-width:0!important;
+        max-width:100%!important;margin:0!important;padding:4px 15px 4px 5px;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        background:#1e293b;border:1px solid #475569;border-radius:8px;
+        color:#6ee7b7;font-weight:700;font-size:11px;line-height:1.25;
+      }
+      .mycar-v341-header #header-vehicle-plate {
+        font-size:10px;line-height:1.4;color:#94a3b8;margin:4px 0 0 2px;
+        overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+      }
+      #mycar-app-shell > header.mycar-v341-header > .mycar-v341-actions {
+        display:flex;align-items:center;justify-content:flex-end;gap:3px;
+        flex:0 0 auto;min-width:0;max-width:none;
+      }
+      .mycar-v341-header .mycar-v341-actions > button {
+        flex:0 0 28px!important;width:28px!important;height:30px!important;
+        min-width:28px!important;max-width:28px!important;display:flex;align-items:center;justify-content:center;
+      }
+      .mycar-v341-header .mycar-v341-actions .mycar-sync-dot-button {
+        flex:0 0 18px!important;width:18px!important;min-width:18px!important;max-width:18px!important;
+      }
+      @media(max-width:359px){
+        #mycar-app-shell > header.mycar-v341-header{gap:4px;padding-left:max(7px,env(safe-area-inset-left));padding-right:max(7px,env(safe-area-inset-right))}
+        .mycar-v341-header .mycar-v341-identity{gap:6px}
+        .mycar-v341-header .mycar-v341-logo{flex-basis:46px;width:46px;height:46px}
+        .mycar-v341-header .mycar-v341-actions > button{flex-basis:26px!important;width:26px!important;min-width:26px!important;max-width:26px!important}
+        #mycar-app-shell > header.mycar-v341-header > .mycar-v341-actions{gap:2px}
+      }
+    </style>
 </head>
 <body class="bg-slate-950 flex justify-center items-center min-h-screen p-0 sm:p-4">
 
@@ -140,30 +191,21 @@
     <!-- Android Device Frame Wrapper -->
     <div id="mycar-app-shell" hidden class="app-shell w-full sm:max-w-md bg-slate-50 sm:rounded-[44px] shadow-2xl flex flex-col overflow-hidden relative border border-slate-800">
 
-        <!-- Top Android Status / App Header Bar -->
-        <header class="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shadow-md z-25 shrink-0">
-            <div class="flex items-center space-x-3">
-                <!-- App Logo Preview Icon -->
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center text-white shadow-md relative overflow-hidden ring-2 ring-emerald-500/40">
-                    <div class="flex flex-col items-center justify-center leading-none">
-                        <span class="font-black text-[13px] tracking-tight text-emerald-400">MY</span>
-                        <span class="font-normal text-[11px] tracking-tight text-white">CAR</span>
-                    </div>
+        <!-- MYCAR v3.4.1: Compact responsive header -->
+        <header class="mycar-v341-header bg-slate-900 text-white shadow-md shrink-0">
+            <div class="mycar-v341-identity">
+                <div class="mycar-v341-logo" aria-label="MYCAR">
+                    <span>MY</span><small>CAR</small>
                 </div>
-                <div>
-                    <div class="flex items-center space-x-2">
-                        <span class="font-black text-sm tracking-tight text-white flex items-center">
-                            <span class="text-emerald-400 font-black text-base">MY</span><span class="text-slate-200 font-normal">CAR</span>
-                        </span>
-                        <select id="header-vehicle-select" onchange="switchActiveVehicle(this.value)" class="bg-slate-800 text-emerald-300 font-bold text-[11px] px-2 py-0.5 rounded-lg border border-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 ml-1">
-                            <!-- Populated dynamically -->
-                        </select>
-                    </div>
-                    <p class="text-[10px] text-slate-400 mt-0.5" id="header-vehicle-plate">Plate: -</p>
+                <div class="mycar-v341-vehicle">
+                    <select id="header-vehicle-select" onchange="switchActiveVehicle(this.value)" aria-label="Select vehicle">
+                        <!-- Populated dynamically -->
+                    </select>
+                    <p id="header-vehicle-plate">Plate: -</p>
                 </div>
             </div>
-            <button type="button" id="mycar-sync-status" data-sync-state="working" onclick="MYCARCloud.syncNow()" title="Checking sync... Tap to sync" aria-label="Checking cloud sync" class="mycar-sync-dot-button" aria-live="off"><span class="mycar-sync-dot" aria-hidden="true"></span></button>
-            <div class="flex items-center space-x-1.5">
+            <div class="mycar-v341-actions">
+                <button type="button" id="mycar-sync-status" data-sync-state="working" onclick="MYCARCloud.syncNow()" title="Checking sync... Tap to sync" aria-label="Checking cloud sync" class="mycar-sync-dot-button" aria-live="off"><span class="mycar-sync-dot" aria-hidden="true"></span></button>
                 <button onclick="openLogoModal()" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-emerald-400 transition" title="App Logo & Brand">
                     <svg aria-hidden="true" focusable="false" class="app-icon text-xs" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M500.3 7.3C507.7 13.3 512 22.4 512 32l0 144c0 26.5-28.7 48-64 48s-64-21.5-64-48s28.7-48 64-48l0-57L352 90.2 352 208c0 26.5-28.7 48-64 48s-64-21.5-64-48s28.7-48 64-48l0-96c0-15.3 10.8-28.4 25.7-31.4l160-32c9.4-1.9 19.1 .6 26.6 6.6zM74.7 304l11.8-17.8c5.9-8.9 15.9-14.2 26.6-14.2l61.7 0c10.7 0 20.7 5.3 26.6 14.2L213.3 304l26.7 0c26.5 0 48 21.5 48 48l0 112c0 26.5-21.5 48-48 48L48 512c-26.5 0-48-21.5-48-48L0 352c0-26.5 21.5-48 48-48l26.7 0zM192 408a48 48 0 1 0 -96 0 48 48 0 1 0 96 0zM478.7 278.3L440.3 368l55.7 0c6.7 0 12.6 4.1 15 10.4s.6 13.3-4.4 17.7l-128 112c-5.6 4.9-13.9 5.3-19.9 .9s-8.2-12.4-5.3-19.2L391.7 400 336 400c-6.7 0-12.6-4.1-15-10.4s-.6-13.3 4.4-17.7l128-112c5.6-4.9 13.9-5.3 19.9-.9s8.2 12.4 5.3 19.2zm-339-59.2c-6.5 6.5-17 6.5-23 0L19.9 119.2c-28-29-26.5-76.9 5-103.9c27-23.5 68.4-19 93.4 6.5l10 10.5 9.5-10.5c25-25.5 65.9-30 93.9-6.5c31 27 32.5 74.9 4.5 103.9l-96.4 99.9z"></path></svg>
                 </button>
@@ -289,9 +331,9 @@
                             </div>
                             <span class="text-[10px] text-slate-400 group-hover:text-emerald-600 font-semibold">View All</span>
                         </div>
-                        <p class="text-[11px] text-slate-500 font-medium">Trips & Other</p>
-                        <h4 class="text-base font-bold text-slate-900 mt-0.5" id="card-other-cost">RM0.00</h4>
-                        <p class="text-[10px] text-slate-400 mt-1" id="card-other-count">0 logs</p>
+                        <p class="text-[11px] text-slate-500 font-medium">Trip Distance</p>
+                        <h4 class="text-base font-bold text-slate-900 mt-0.5" id="card-other-cost">0 km</h4>
+                        <p class="text-[10px] text-slate-400 mt-1" id="card-other-count">0 trips</p>
                     </div>
                 </div>
 
@@ -448,7 +490,7 @@
                             </div>
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="space-y-1">
-                                    <label class="text-xs font-semibold text-slate-600">Total Cost (RM)</label>
+                                    <label class="text-xs font-semibold text-slate-600">Total Cost (MYR — original)</label>
                                     <input type="number" step="0.01" id="fuel-cost" placeholder="e.g. 72.50" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                                 </div>
                                 <div class="space-y-1">
@@ -480,7 +522,7 @@
                                     <input type="number" step="0.1" id="maint-odometer" placeholder="e.g. 55000" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                                 </div>
                                 <div class="space-y-1">
-                                    <label class="text-xs font-semibold text-slate-600">Total Cost (RM)</label>
+                                    <label class="text-xs font-semibold text-slate-600">Total Cost (MYR — original)</label>
                                     <input type="number" step="0.01" id="maint-cost" placeholder="e.g. 180.00" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                                 </div>
                             </div>
@@ -521,7 +563,7 @@
                                     </select>
                                 </div>
                                 <div class="space-y-1">
-                                    <label class="text-xs font-semibold text-slate-600">Total Cost (RM)</label>
+                                    <label class="text-xs font-semibold text-slate-600">Total Cost (MYR — original)</label>
                                     <input type="number" step="0.01" id="tax-cost" placeholder="e.g. 90.00" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                                 </div>
                             </div>
@@ -572,7 +614,7 @@
                                     <input type="text" id="other-desc" placeholder="e.g. Car Wash, Parking Fee" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                                 </div>
                                 <div class="space-y-1">
-                                    <label class="text-xs font-semibold text-slate-600">Total Cost (RM)</label>
+                                    <label class="text-xs font-semibold text-slate-600">Total Cost (MYR — original)</label>
                                     <input type="number" step="0.01" id="other-cost" placeholder="e.g. 15.00" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                                 </div>
                             </div>
@@ -699,11 +741,17 @@
                     </div>
                     <div class="flex items-center justify-between gap-2 rounded-xl bg-slate-100 p-3"><span id="mycar-sync-detail" class="text-[11px] text-slate-600">Not yet synced</span><button type="button" onclick="MYCARCloud.syncNow()" class="text-xs font-bold text-emerald-700">Sync now</button></div>
                     <div class="space-y-1">
-                        <label class="text-xs font-semibold text-slate-600">Currency (Locked to MYR)</label>
-                        <input type="text" disabled value="Malaysian Ringgit (RM)" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-600 font-bold">
+                        <label class="text-xs font-semibold text-slate-600">Display Currency (base MYR)</label>
+                        <select id="mycar-currency-select" aria-label="Display currency" onchange="MYCARCurrency.choose(this.value)" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 font-bold">
+                          <option value="MYR">MYR — Malaysian Ringgit (RM) · Default</option>
+                          <option value="THB">THB — Thai Baht (฿)</option>
+                          <option value="USD">USD — US Dollar ($)</option>
+                        </select>
+                        <p id="mycar-currency-note" role="status" aria-live="polite" class="text-[10px] leading-5 text-slate-500 mt-1">Original MYR values. No conversion. Stored records remain MYR.</p>
+                        <p class="text-[10px] leading-5 text-slate-500 mt-1">Reference rates provided by <a class="underline" target="_blank" rel="noopener noreferrer" href="https://www.exchangerate-api.com">ExchangeRate-API</a>. Amounts entered and exported remain MYR; only on-screen values are converted.</p>
                     </div>
                     <div class="pt-2 space-y-2">
-                        <div class="text-center text-[11px] text-slate-500">MYCAR v3.3.3 · PWA auto-update enabled</div>
+                        <div class="text-center text-[11px] text-slate-500">MYCAR v3.3.1 · PWA auto-update enabled</div>
                         <button type="button" onclick="checkMYCARUpdates()" class="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold py-2.5 rounded-xl text-xs transition">Check for app updates</button>
                         <button id="install-app-btn" onclick="installMYCAR()" class="hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition">Install MYCAR App</button>
                         <p id="install-hint" class="text-[11px] text-slate-500">On Android: browser menu → Install app. On iPhone: Share → Add to Home Screen.</p>
@@ -770,10 +818,10 @@
 
     <!-- JavaScript Application Logic -->
     <script src="./auth-config.js" defer></script>
-    <script src="./auth.js?v=3.3.3" defer></script>
-    <script src="./cloud-sync.js?v=3.3.3" defer></script>
-    <script src="./app.js?v=3.3.3" defer></script>
-    <script src="./vehicle-photos.js?v=3.3.3" defer></script>
-    <script src="./tng-import.js?v=3.3.3" defer></script>
+    <script src="./auth.js?v=3.4.1" defer></script>
+    <script src="./cloud-sync.js?v=3.4.1" defer></script>
+    <script src="./app.js?v=3.4.1" defer></script>
+    <script src="./vehicle-photos.js?v=3.4.1" defer></script>
+    <script src="./tng-import.js?v=3.4.1" defer></script>
 </body>
 </html>

@@ -48,7 +48,73 @@
             if (idx === -1) dbData[collection].push(entry);
             else dbData[collection][idx]=entry;
         }
-        const money=value=>'RM'+Number(value||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+        // MYCAR 3.4 currency display layer; all persisted costs remain MYR.
+        const MYCARCurrency = (() => {
+          const KEY='mycar_display_currency_v1';
+          const CACHE='mycar_fx_rates_myr_v1';
+          const CURRENCIES={MYR:'RM',THB:'฿',USD:'$'};
+          let selected='MYR',rates={MYR:1},rateDate='',fetchedAt='',stale=false,busy=false;
+          try {const cached=JSON.parse(localStorage.getItem(CACHE)||'null');
+            if(cached&&Number.isFinite(cached.rates?.THB)&&cached.rates.THB>0&&Number.isFinite(cached.rates?.USD)&&cached.rates.USD>0){rates={MYR:1,THB:cached.rates.THB,USD:cached.rates.USD};rateDate=cached.date||'';fetchedAt=cached.fetchedAt||'';stale=(fetchedAt!==new Date().toISOString().slice(0,10));}
+            const pref=localStorage.getItem(KEY);if(CURRENCIES[pref]&&rates[pref])selected=pref;
+          }catch(e){console.warn('FX preference cache unavailable',e);}
+          function format(value){
+            const n=Number(value)||0;
+            const converted=n*(selected==='MYR'?1:rates[selected]);
+            return CURRENCIES[selected]+converted.toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+          }
+          function updateUI(){
+            const sel=document.getElementById('mycar-currency-select');if(sel){sel.value=selected;sel.disabled=busy;}
+            const note=document.getElementById('mycar-currency-note');
+            if(note){
+              if(busy)note.textContent='Checking current exchange rates…';
+              else if(selected==='MYR')note.textContent='Original MYR values. No conversion. Stored records remain MYR.';
+              else note.textContent=(stale?'Cached rate · ':'Reference rate · ')+
+                 '1 MYR = '+rates[selected].toFixed(4)+' '+selected+
+                 (rateDate?' · Updated '+rateDate:'')+'. Stored costs remain MYR.';
+            }
+            document.querySelectorAll('[data-money-code]').forEach(el=>{el.textContent=selected;});
+          }
+          async function getRates(force=false){
+            if(!force && fetchedAt===new Date().toISOString().slice(0,10) && rates.THB && rates.USD)return true;
+            const ctl=new AbortController();const timer=setTimeout(()=>ctl.abort(),8500);
+            try{
+              const response=await fetch('https://open.er-api.com/v6/latest/MYR',{signal:ctl.signal,cache:'no-store'});
+              if(!response.ok)throw new Error('FX service HTTP '+response.status);
+              const data=await response.json();
+              if(data.result!=='success'||data.base_code!=='MYR')throw new Error('Invalid FX base currency');
+              if(!['USD','THB'].every(k=>Number.isFinite(data.rates?.[k])&&data.rates[k]>0))throw new Error('Missing FX rates');
+              rates={MYR:1,THB:data.rates.THB,USD:data.rates.USD};
+              rateDate=data.time_last_update_utc ? new Date(data.time_last_update_utc).toISOString().slice(0,10) : new Date().toISOString().slice(0,10);
+              stale=false;fetchedAt=new Date().toISOString().slice(0,10);
+              try{localStorage.setItem(CACHE,JSON.stringify({rates,date:rateDate,fetchedAt}));}catch(e){}
+              return true;
+            }catch(err){console.warn('Exchange rate retrieval failed',err);return false;}
+            finally{clearTimeout(timer);}
+          }
+          async function choose(code){
+            if(!CURRENCIES[code]||busy)return;
+            if(code==='MYR'){
+              selected='MYR';try{localStorage.setItem(KEY,selected);}catch(e){}
+              updateUI();if(typeof refreshActiveView==='function')refreshActiveView();return;
+            }
+            busy=true;updateUI();
+            const ok=await getRates();
+            busy=false;
+            if(!ok && !rates[code]){
+              alert('Exchange rates are unavailable. Currency remains '+selected+'. Please reconnect and try again.');
+              updateUI();return;
+            }
+            if(!ok)stale=true;
+            selected=code;try{localStorage.setItem(KEY,selected);}catch(e){}
+            updateUI();if(typeof refreshActiveView==='function')refreshActiveView();
+          }
+          function init(){updateUI();if(selected!=='MYR')getRates().then(ok=>{if(ok){updateUI();if(typeof refreshActiveView==='function')refreshActiveView();}});}
+          return {format,choose,init,current:()=>selected,rate:()=>rates[selected]};
+        })();
+        const money=value=>MYCARCurrency.format(value);
+        window.MYCARCurrency=MYCARCurrency;
+
         const fmtCount=value=>Number(value||0).toLocaleString('en-US',{maximumFractionDigits:1});
         function fuelIntervals(vehicleId) {
           const fuels=dbData.fuel.filter(f=>f.vehicleId===vehicleId && Number(f.odometer)>0)
@@ -134,7 +200,7 @@
             const info=d.month+'; distance '+fmtCount(d.km)+' km; expenses '+money(d.cost);
             return `<g class="mycar-v33-month" data-month="${d.month}" role="button" tabindex="0" aria-label="${info}" aria-pressed="false"><rect x="${expenseX.toFixed(1)}" y="${(baseline-expenseHeight).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${expenseHeight.toFixed(1)}" rx="3" fill="#0f766e"/><rect x="${distanceX.toFixed(1)}" y="${(baseline-distanceHeight).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${distanceHeight.toFixed(1)}" rx="3" fill="#f59e0b"/><rect class="mycar-v33-hit" x="${(center-step*.46).toFixed(1)}" y="${top}" width="${(step*.92).toFixed(1)}" height="${baseline-top+8}" fill="transparent"/><text x="${center.toFixed(1)}" y="177" font-size="10" text-anchor="middle" fill="#64748b">${label}</text></g>`;
           }).join('');
-          target.innerHTML=`<div class="mycar-v33-legend"><span><i class="mycar-v33-key" style="background:#0f766e"></i>Expenses (RM)</span><span><i class="mycar-v33-key" style="background:#f59e0b"></i>Trip distance (km)</span></div><div class="mycar-v33-chart"><svg viewBox="0 0 ${W} ${H}" style="width:${W}px;max-width:none" role="group" aria-label="Monthly grouped bar chart: green expenses in RM, amber trip distance in km; tap a month for exact values"><line x1="${startX}" y1="${baseline}" x2="${endX}" y2="${baseline}" stroke="#cbd5e1"/><line x1="${startX}" y1="${top}" x2="${startX}" y2="${baseline}" stroke="#cbd5e1" opacity=".6"/><text x="${startX-4}" y="15" fill="#0f766e" font-size="10" text-anchor="start">RM ${Math.round(maxCost).toLocaleString('en-US')}</text><text x="${endX}" y="15" fill="#b45309" font-size="10" text-anchor="end">${Math.round(maxKm).toLocaleString('en-US')} km</text>${marks}</svg></div><div id="mycar-v33-selected" role="status" aria-live="polite" class="mycar-v33-selected">Tap a month for values.</div>`;
+          target.innerHTML=`<div class="mycar-v33-legend"><span><i class="mycar-v33-key" style="background:#0f766e"></i>Expenses (${MYCARCurrency.current()})</span><span><i class="mycar-v33-key" style="background:#f59e0b"></i>Trip distance (km)</span></div><div class="mycar-v33-chart"><svg viewBox="0 0 ${W} ${H}" style="width:${W}px;max-width:none" role="group" aria-label="Monthly grouped bar chart: green expenses in RM, amber trip distance in km; tap a month for exact values"><line x1="${startX}" y1="${baseline}" x2="${endX}" y2="${baseline}" stroke="#cbd5e1"/><line x1="${startX}" y1="${top}" x2="${startX}" y2="${baseline}" stroke="#cbd5e1" opacity=".6"/><text x="${startX-4}" y="15" fill="#0f766e" font-size="10" text-anchor="start">${MYCARCurrency.current()} ${Math.round(maxCost*MYCARCurrency.rate()).toLocaleString('en-US')}</text><text x="${endX}" y="15" fill="#b45309" font-size="10" text-anchor="end">${Math.round(maxKm).toLocaleString('en-US')} km</text>${marks}</svg></div><div id="mycar-v33-selected" role="status" aria-live="polite" class="mycar-v33-selected">Tap a month for values.</div>`;
           for(const node of target.querySelectorAll('.mycar-v33-month')){
             node.addEventListener('click',()=>showMonthlyTrendDetail(node.dataset.month));
             node.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showMonthlyTrendDetail(node.dataset.month);}});
@@ -446,8 +512,8 @@
 
             const coCost = document.getElementById('card-other-cost');
             const coCount = document.getElementById('card-other-count');
-            if (coCost) coCost.textContent = money(totalOther);
-            if (coCount) coCount.textContent = `${others.length + trips.length} logs`;
+            if (coCost) coCost.textContent = `${totalDistance.toLocaleString('en-US')} km`;
+            if (coCount) coCount.textContent = `${trips.length} trips`;
             renderMonthlyTrends();
         }
 
@@ -479,7 +545,7 @@
                             </div>
                         </div>
                         <div class="flex items-center space-x-3">
-                            <span class="font-bold text-slate-900 text-sm">RM${Number(item.cost).toFixed(2)}</span>
+                            <span class="font-bold text-slate-900 text-sm">${money(item.cost)}</span>
                             <button onclick="editItem('fuel', '${item.id}')" title="Edit" aria-label="Edit record" class="text-emerald-600 hover:text-emerald-800 text-xs w-7 h-7 inline-flex items-center justify-center"><svg aria-hidden="true" focusable="false" class="app-icon " viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M362.7 19.3L314.3 67.7 444.3 197.7l48.4-48.4c25-25 25-65.5 0-90.5L453.3 19.3c-25-25-65.5-25-90.5 0zm-71 71L58.6 323.5c-10.4 10.4-18 23.3-22.2 37.4L1 481.2C-1.5 489.7 .8 498.8 7 505s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L421.7 220.3 291.7 90.3z"></path></svg></button>
                             <button onclick="deleteItem('fuel', '${item.id}')" class="text-slate-400 hover:text-rose-600 text-xs w-7 h-7 inline-flex items-center justify-center">
                                 <svg aria-hidden="true" focusable="false" class="app-icon " viewBox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M135.2 17.7L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-7.2-14.3C307.4 6.8 296.3 0 284.2 0L163.8 0c-12.1 0-23.2 6.8-28.6 17.7zM416 128L32 128 53.2 467c1.6 25.3 22.6 45 47.9 45l245.8 0c25.3 0 46.3-19.7 47.9-45L416 128z"></path></svg>
@@ -516,7 +582,7 @@
                             </div>
                         </div>
                         <div class="flex items-center space-x-3">
-                            <span class="font-bold text-slate-900 text-sm">RM${Number(item.cost).toFixed(2)}</span>
+                            <span class="font-bold text-slate-900 text-sm">${money(item.cost)}</span>
                             <button onclick="editItem('maintenance', '${item.id}')" title="Edit" aria-label="Edit record" class="text-emerald-600 hover:text-emerald-800 text-xs w-7 h-7 inline-flex items-center justify-center"><svg aria-hidden="true" focusable="false" class="app-icon " viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M362.7 19.3L314.3 67.7 444.3 197.7l48.4-48.4c25-25 25-65.5 0-90.5L453.3 19.3c-25-25-65.5-25-90.5 0zm-71 71L58.6 323.5c-10.4 10.4-18 23.3-22.2 37.4L1 481.2C-1.5 489.7 .8 498.8 7 505s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L421.7 220.3 291.7 90.3z"></path></svg></button>
                             <button onclick="deleteItem('maintenance', '${item.id}')" class="text-slate-400 hover:text-rose-600 text-xs w-7 h-7 inline-flex items-center justify-center">
                                 <svg aria-hidden="true" focusable="false" class="app-icon " viewBox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M135.2 17.7L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-7.2-14.3C307.4 6.8 296.3 0 284.2 0L163.8 0c-12.1 0-23.2 6.8-28.6 17.7zM416 128L32 128 53.2 467c1.6 25.3 22.6 45 47.9 45l245.8 0c25.3 0 46.3-19.7 47.9-45L416 128z"></path></svg>
@@ -553,7 +619,7 @@
                             </div>
                         </div>
                         <div class="flex items-center space-x-3">
-                            <span class="font-bold text-slate-900 text-sm">RM${Number(item.cost).toFixed(2)}</span>
+                            <span class="font-bold text-slate-900 text-sm">${money(item.cost)}</span>
                             <button onclick="editItem('tax', '${item.id}')" title="Edit" aria-label="Edit record" class="text-emerald-600 hover:text-emerald-800 text-xs w-7 h-7 inline-flex items-center justify-center"><svg aria-hidden="true" focusable="false" class="app-icon " viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M362.7 19.3L314.3 67.7 444.3 197.7l48.4-48.4c25-25 25-65.5 0-90.5L453.3 19.3c-25-25-65.5-25-90.5 0zm-71 71L58.6 323.5c-10.4 10.4-18 23.3-22.2 37.4L1 481.2C-1.5 489.7 .8 498.8 7 505s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L421.7 220.3 291.7 90.3z"></path></svg></button>
                             <button onclick="deleteItem('tax', '${item.id}')" class="text-slate-400 hover:text-rose-600 text-xs w-7 h-7 inline-flex items-center justify-center">
                                 <svg aria-hidden="true" focusable="false" class="app-icon " viewBox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M135.2 17.7L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-7.2-14.3C307.4 6.8 296.3 0 284.2 0L163.8 0c-12.1 0-23.2 6.8-28.6 17.7zM416 128L32 128 53.2 467c1.6 25.3 22.6 45 47.9 45l245.8 0c25.3 0 46.3-19.7 47.9-45L416 128z"></path></svg>
@@ -626,7 +692,7 @@
                             </div>
                         </div>
                         <div class="flex items-center space-x-3">
-                            <span class="font-bold text-slate-900 text-sm">RM${Number(item.cost).toFixed(2)}</span>
+                            <span class="font-bold text-slate-900 text-sm">${money(item.cost)}</span>
                             <button onclick="editItem('other', '${item.id}')" title="Edit" aria-label="Edit record" class="text-emerald-600 hover:text-emerald-800 text-xs w-7 h-7 inline-flex items-center justify-center"><svg aria-hidden="true" focusable="false" class="app-icon " viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M362.7 19.3L314.3 67.7 444.3 197.7l48.4-48.4c25-25 25-65.5 0-90.5L453.3 19.3c-25-25-65.5-25-90.5 0zm-71 71L58.6 323.5c-10.4 10.4-18 23.3-22.2 37.4L1 481.2C-1.5 489.7 .8 498.8 7 505s15.3 8.5 23.7 6.1l120.3-35.4c14.1-4.2 27-11.8 37.4-22.2L421.7 220.3 291.7 90.3z"></path></svg></button>
                             <button onclick="deleteItem('other', '${item.id}')" class="text-slate-400 hover:text-rose-600 text-xs w-7 h-7 inline-flex items-center justify-center">
                                 <svg aria-hidden="true" focusable="false" class="app-icon " viewBox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M135.2 17.7L128 32 32 32C14.3 32 0 46.3 0 64S14.3 96 32 96l384 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0-7.2-14.3C307.4 6.8 296.3 0 284.2 0L163.8 0c-12.1 0-23.2 6.8-28.6 17.7zM416 128L32 128 53.2 467c1.6 25.3 22.6 45 47.9 45l245.8 0c25.3 0 46.3-19.7 47.9-45L416 128z"></path></svg>
@@ -661,7 +727,7 @@
             let html = '';
             recent.forEach(item => {
                 let title = item.fuelType || item.type || item.purpose || item.description || 'Expense';
-                let costStr = item.cost ? `RM${Number(item.cost).toFixed(2)}` : `${item.distance || 0} km`;
+                let costStr = item.cost ? `${money(item.cost)}` : `${item.distance || 0} km`;
                 let iconClass = item.cat === 'fuel' ? 'fa-gas-pump text-orange-600 bg-orange-100' :
                                 item.cat === 'maintenance' ? 'fa-wrench text-blue-600 bg-blue-100' :
                                 item.cat === 'tax' ? 'fa-file-invoice-dollar text-purple-600 bg-purple-100' :
@@ -811,6 +877,7 @@
         }
 
         function openSettingsModal() {
+            MYCARCurrency.init();
             const modal = document.getElementById('settings-modal');
             if (modal) modal.classList.remove('hidden');
         }
@@ -1129,6 +1196,7 @@
         }
 
         function initializeMYCARAfterLogin(user) {
+            MYCARCurrency.init();
             // Namespaced by backend project + verified user UUID. No automatic legacy-data migration.
             STORAGE_KEY = `mycar_auth_v1:${AuthManager.projectId}:${user.id}`;
             dbData = newEmptyData();
