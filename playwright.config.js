@@ -9,6 +9,7 @@ module.exports = defineConfig({
   reporter: [ ['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }] ],
   use: {
     baseURL: 'http://127.0.0.1:4173',
+    serviceWorkers: 'block', // prevent app PWA service worker interfering with isolated UI tests
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure'
