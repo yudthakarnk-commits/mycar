@@ -13,6 +13,8 @@ jobs:
   playwright:
     name: UI regression - Chromium and WebKit
     runs-on: ubuntu-24.04
+    container: 
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
     timeout-minutes: 20
     steps:
       - name: Checkout current branch
@@ -23,8 +25,7 @@ jobs:
           node-version: '22'
       - name: Install test dependencies
         run: npm install --no-audit --no-fund
-      - name: Install Chromium and WebKit on GitHub runner
-        run: npx playwright install --with-deps chromium webkit
+      
       - name: Run isolated UI tests
         run: npm run test:ui
         env:
