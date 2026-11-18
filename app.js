@@ -48,25 +48,74 @@
             if (idx === -1) dbData[collection].push(entry);
             else dbData[collection][idx]=entry;
         }
+        const money=value=>'RM'+Number(value||0).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+        const fmtCount=value=>Number(value||0).toLocaleString('en-US',{maximumFractionDigits:1});
+        function fuelIntervals(vehicleId) {
+          const fuels=dbData.fuel.filter(f=>f.vehicleId===vehicleId && Number(f.odometer)>0)
+            .sort((a,b)=>Number(a.odometer)-Number(b.odometer) || String(a.date).localeCompare(String(b.date)));
+          const result=[];
+          let last=null;
+          for(const item of fuels){
+            const odo=Number(item.odometer),liters=Number(item.liters);
+            const distance=last && odo>Number(last.odometer)?odo-Number(last.odometer):null;
+            const rate=distance!==null && liters>0 && item.fuelType!=='EV Charging'?distance/liters:null;
+            result.push({item,distance,rate});
+            last=item;
+          }
+          return result;
+        }
         function getEfficiencyForPeriod(vehicleId) {
-            // Only verified full-to-full intervals can estimate actual km per litre.
-            const entries = dbData.fuel.filter(f => f.vehicleId === vehicleId)
-                .sort((a,b) => Number(a.odometer)-Number(b.odometer));
-            let lastFull=null, consumed=0, distance=0, liters=0;
-            for (const item of entries) {
-                const odo=Number(item.odometer), qty=Number(item.liters);
-                if (!(odo > 0 && qty > 0) || item.fuelType === 'EV Charging') continue;
-                if (lastFull) consumed+=qty;
-                if (item.fullTank) {
-                    if (lastFull && odo > Number(lastFull.odometer) && filterByDate(item.date)) {
-                        distance+=odo-Number(lastFull.odometer);
-                        liters+=consumed;
-                    }
-                    lastFull=item;
-                    consumed=0;
-                }
+          // Estimated only: without verified full-to-full fills, this ratio is not actual consumption.
+          const eligible=fuelIntervals(vehicleId).filter(x=>x.rate!==null && filterByDate(x.item.date));
+          const km=eligible.reduce((s,x)=>s+x.distance,0);
+          const liters=eligible.reduce((s,x)=>s+Number(x.item.liters),0);
+          return liters>0 ? (km/liters).toFixed(1) : '—';
+        }
+        function estimateFuelForm() {
+          const panel=document.getElementById('fuel-estimate-panel');
+          if(!panel || document.getElementById('form-type')?.value!=='fuel')return;
+          const date=document.getElementById('field-date')?.value||'';
+          const id=document.getElementById('form-id')?.value;
+          const odo=Number(document.getElementById('fuel-odometer')?.value);
+          const liters=Number(document.getElementById('fuel-liters')?.value);
+          const prev=dbData.fuel.filter(f=>f.vehicleId===getActiveVehicle().id && f.id!==id && Number(f.odometer)>0 && Number(f.odometer)<odo && String(f.date)<=date)
+            .sort((a,b)=>Number(b.odometer)-Number(a.odometer))[0];
+          const km=prev && odo>Number(prev.odometer) ? odo-Number(prev.odometer):null;
+          document.getElementById('fuel-est-distance').textContent=km===null?'—':fmtCount(km)+' km';
+          document.getElementById('fuel-est-efficiency').textContent=km!==null && liters>0 ? (km/liters).toFixed(1)+' km/L':'—';
+        }
+        function renderMonthlyTrends() {
+          const target=document.getElementById('mycar-monthly-trends');if(!target)return;
+          const car=getActiveVehicle(),{year,month}=getFilterCriteria();
+          const series=new Map();
+          const getMonth=d=>typeof d==='string' && /^\d{4}-\d{2}-\d{2}$/.test(d)?d.slice(0,7):null;
+          const eligible=d=>{const m=getMonth(d);return !!m && (year==='all'||m.slice(0,4)===year) && (month==='all'||Number(m.slice(5))-1===Number(month));};
+          for(const key of ['fuel','maintenance','tax','trips','other']){
+            for(const entry of dbData[key]){
+              if(entry.vehicleId!==car.id || !eligible(entry.date))continue;
+              const m=getMonth(entry.date);
+              if(!series.has(m))series.set(m,{month:m,km:0,cost:0});
+              const row=series.get(m);row.cost+=Number(entry.cost)||0;
+              if(key==='trips')row.km+=Math.max(0,Number(entry.distance)||0);
             }
-            return liters > 0 ? (distance / liters).toFixed(1) : '—';
+          }
+          const data=[...series.values()].sort((a,b)=>a.month.localeCompare(b.month));
+          const escape=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+          if(!data.length){target.innerHTML='<div class="mycar-trend-empty">No monthly records for this period.</div>';return;}
+          const make=(field,label,color,unit)=>{
+            const all=data.map(d=>d[field]);const max=Math.max(...all,1);
+            const W=Math.max(320,Math.min(720,70+data.length*49)),H=174,top=18,bottom=139,base=bottom-top;
+            const gap=(W-48)/data.length,bar=Math.min(24,gap*.54);
+            const marks=data.map((r,i)=>{
+              const x=31+i*gap+(gap-bar)/2;
+              const height=Math.max(0,r[field]/max*base);
+              const text=r.month.slice(5)+'/'+r.month.slice(2,4);
+              const value=unit==='RM'?money(r[field]):fmtCount(r[field])+' km';
+              return `<rect x="${x.toFixed(1)}" y="${(bottom-height).toFixed(1)}" width="${bar.toFixed(1)}" height="${height.toFixed(1)}" rx="3" fill="${color}"><title>${escape(r.month+': '+value)}</title></rect><text x="${(x+bar/2).toFixed(1)}" y="156" text-anchor="middle" fill="#64748b" font-size="9.5">${text}</text>`;
+            }).join('');
+            return `<div class="mycar-trend-panel"><div class="mycar-trend-label">${label}</div><div class="mycar-trend-scroll"><svg role="img" aria-label="${label} by month" class="mycar-trend-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"><line x1="29" y1="139" x2="${W-8}" y2="139" stroke="#cbd5e1"/><text x="28" y="18" fill="#64748b" text-anchor="end" font-size="9">${unit==='RM'?'RM':''}${Math.round(max).toLocaleString('en-US')}</text>${marks}</svg></div></div>`;
+          };
+          target.innerHTML=make('km','Logged trip distance (km)','#10b981','km')+make('cost','Expenses (RM)','#0f766e','RM');
         }
         let pendingInstallPrompt = null;
         window.addEventListener('beforeinstallprompt', event => {
@@ -92,7 +141,7 @@
             navigator.serviceWorker.addEventListener('controllerchange',()=>{
                 if(changedController)return;
                 changedController=true;
-                const versionKey='mycar-sw-loaded-v3.1.0';
+                const versionKey='mycar-sw-loaded-v3.2.0';
                 const editorOpen=['app-modal','vehicle-modal','tng-import-modal'].some(id=>{
                     const element=document.getElementById(id);
                     return !!element && !element.classList.contains('hidden') && !element.hidden;
@@ -350,31 +399,32 @@
             const sumDistEl = document.getElementById('sum-total-distance');
             const sumEffEl = document.getElementById('sum-avg-efficiency');
 
-            if (sumCostEl) sumCostEl.textContent = `RM${grandTotal.toFixed(2)}`;
+            if (sumCostEl) sumCostEl.textContent = money(grandTotal);
             if (sumDistEl) sumDistEl.textContent = odometer == null ? '—' : `${odometer.toLocaleString('en-US')} km`;
             const tripSumEl = document.getElementById('sum-trip-distance');
             if (tripSumEl) tripSumEl.textContent = `Logged trips: ${totalDistance.toLocaleString('en-US')} km`;
-            if (sumEffEl) sumEffEl.textContent = avgEff === '—' ? '—' : `${avgEff} km/L`;
+            if (sumEffEl) sumEffEl.textContent = avgEff === '—' ? '—' : `${avgEff} km/L (est.)`;
 
             const cfCost = document.getElementById('card-fuel-cost');
             const cfCount = document.getElementById('card-fuel-count');
-            if (cfCost) cfCost.textContent = `RM${totalFuel.toFixed(2)}`;
+            if (cfCost) cfCost.textContent = money(totalFuel);
             if (cfCount) cfCount.textContent = `${fuels.length} logs`;
 
             const cmCost = document.getElementById('card-maint-cost');
             const cmCount = document.getElementById('card-maint-count');
-            if (cmCost) cmCost.textContent = `RM${totalMaint.toFixed(2)}`;
+            if (cmCost) cmCost.textContent = money(totalMaint);
             if (cmCount) cmCount.textContent = `${maints.length} logs`;
 
             const ctCost = document.getElementById('card-tax-cost');
             const ctCount = document.getElementById('card-tax-count');
-            if (ctCost) ctCost.textContent = `RM${totalTax.toFixed(2)}`;
+            if (ctCost) ctCost.textContent = money(totalTax);
             if (ctCount) ctCount.textContent = `${taxes.length} logs`;
 
             const coCost = document.getElementById('card-other-cost');
             const coCount = document.getElementById('card-other-count');
-            if (coCost) coCost.textContent = `RM${totalOther.toFixed(2)}`;
+            if (coCost) coCost.textContent = money(totalOther);
             if (coCount) coCount.textContent = `${others.length + trips.length} logs`;
+            renderMonthlyTrends();
         }
 
         function renderFuelList() {
@@ -389,7 +439,10 @@
             }
 
             let html = '';
+            const intervalMap=new Map(fuelIntervals(activeVeh.id).map(x=>[x.item.id,x]));
             list.forEach(item => {
+                const interval=intervalMap.get(item.id);
+                const estimate=interval?.distance!=null ? ` · ${fmtCount(interval.distance)} km${interval.rate!=null?' · ~'+interval.rate.toFixed(1)+' km/L':''}` : '';
                 html += `
                     <div class="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
                         <div class="flex items-center space-x-3">
@@ -398,7 +451,7 @@
                             </div>
                             <div>
                                 <h4 class="font-bold text-slate-800 text-xs">${escapeHTML(item.fuelType || 'RON95')} • ${item.liters} L</h4>
-                                <p class="text-[10px] text-slate-500">${item.date} | ${escapeHTML(item.station || 'Gas Station')} (${item.odometer} km)</p>
+                                <p class="text-[10px] text-slate-500">${item.date} | ${escapeHTML(item.notes||item.station||'')} (${fmtCount(item.odometer)} km)${estimate}</p>
                             </div>
                         </div>
                         <div class="flex items-center space-x-3">
@@ -640,6 +693,7 @@
                 if (odoIn && activeVeh.currentOdometer) {
                     odoIn.value = activeVeh.currentOdometer;
                 }
+                estimateFuelForm();
             }
 
             if (type === 'trip') fillSuggestedTripStart(true);
@@ -739,8 +793,8 @@
             if(type==='fuel') {
                 put('fuel-odometer',item.odometer); put('fuel-liters',item.liters);
                 put('fuel-cost',item.cost); put('fuel-type-name',item.fuelType);
-                put('fuel-station',item.station);
-                document.getElementById('fuel-full-tank').checked=!!item.fullTank;
+                put('fuel-station',item.station||item.notes||'');
+                estimateFuelForm();
             } else if(type==='maintenance') {
                 put('maint-odometer',item.odometer); put('maint-cost',item.cost); put('maint-type',item.type);
                 put('maint-garage',item.garage); put('maint-notes',item.notes);
@@ -766,11 +820,10 @@
                 const liters = Number(document.getElementById('fuel-liters').value) || 0;
                 const cost = Number(document.getElementById('fuel-cost').value) || 0;
                 const fuelType = document.getElementById('fuel-type-name').value;
-                const fullTank = document.getElementById('fuel-full-tank').checked;
                 const station = document.getElementById('fuel-station').value;
 
                 if (!(odo > 0 && liters > 0 && cost >= 0)) { alert('Enter an odometer, positive litres, and a valid cost.'); return; }
-                upsertRecord('fuel', { id, vehicleId: activeVeh.id, date, odometer: odo, liters, cost, fuelType, fullTank, station });
+                upsertRecord('fuel', { id, vehicleId: activeVeh.id, date, odometer: odo, liters, cost, fuelType, station, notes: station });
                 if (odo > activeVeh.currentOdometer) {
                     activeVeh.currentOdometer = odo;
                 }
@@ -928,30 +981,49 @@
             document.body.appendChild(anchor); anchor.click(); anchor.remove();
             setTimeout(()=>URL.revokeObjectURL(url), 3000);
         }
+        function toggleMYCARExportPeriod() {
+          const select=document.getElementById('mycar-export-scope');
+          document.getElementById('mycar-export-range').hidden=select.value!=='range';
+        }
+        function selectedExportData() {
+          const scope=document.getElementById('mycar-export-scope')?.value||'all';
+          if(scope==='all')return {data:dbData,label:'all',isFull:true};
+          const from=document.getElementById('mycar-export-start').value;
+          const to=document.getElementById('mycar-export-end').value;
+          if(!/^\d{4}-\d{2}$/.test(from)||!/^\d{4}-\d{2}$/.test(to)||from>to)throw new Error('Select a valid From and To month.');
+          const data={...dbData,vehicles:dbData.vehicles.map(v=>({...v}))};
+          for(const col of ['fuel','maintenance','tax','trips','other'])data[col]=dbData[col].filter(x=>typeof x.date==='string' && x.date.slice(0,7)>=from && x.date.slice(0,7)<=to);
+          return {data,label:from+'_to_'+to,isFull:false};
+        }
         function exportJSON() {
-            downloadTextFile(JSON.stringify(dbData,null,2),`mycar_backup_${localToday()}.json`,'application/json');
-            showToast('JSON backup downloaded');
+          let selection;try{selection=selectedExportData();}catch(e){alert(e.message);return;}
+          // Date-scoped JSON is clearly a report, not a safe restore/replacement backup.
+          const payload=selection.isFull?selection.data:{type:'MYCAR_PERIOD_REPORT_NOT_FOR_RESTORE',range:selection.label,generatedAt:new Date().toISOString(),records:selection.data};
+          downloadTextFile(JSON.stringify(payload,null,2),`mycar_${selection.isFull?'backup':'report'}_${selection.label}_${localToday()}.json`,'application/json');
+          showToast(selection.isFull?'Full JSON backup downloaded':'Period JSON report downloaded');
         }
         function exportCSV() {
-            const rows=[['Category','Date','Vehicle','Plate','Details','Cost(RM)','Odometer(km)','Distance(km)','Litres','Notes']];
-            const vehicleName=id=>dbData.vehicles.find(v=>v.id===id) || {name:'Unknown',plate:''};
-            const add=(category,entry,details,notes,odo='',distance='',litres='')=>{
-                const v=vehicleName(entry.vehicleId);
-                rows.push([category,entry.date,v.name,v.plate,details,entry.cost ?? 0,odo,distance,litres,notes]);
-            };
-            dbData.fuel.forEach(f=>add('Fuel',f,f.fuelType,f.station,f.odometer,'',f.liters));
-            dbData.maintenance.forEach(m=>add('Maintenance',m,m.type,m.garage+' '+(m.notes||''),m.odometer));
-            dbData.tax.forEach(t=>add('Tax/Insurance',t,t.type,(t.notes||'')+' | Expiry: '+(t.expiry||'')));
-            dbData.trips.forEach(t=>add('Trip',t,t.purpose,t.notes,t.endOdometer,t.distance));
-            dbData.other.forEach(o=>add('Other',o,o.description,o.notes));
-            const safeCSV=value=>{
-                const str=String(value??'');
-                const cell=typeof value === 'number' ? str : (/^[=+@-]/.test(str.trimStart()) ? "'"+str : str);
-                return '"'+cell.replace(/"/g,'""')+'"';
-            };
-            const csv='\uFEFF'+rows.map(row=>row.map(safeCSV).join(',')).join('\r\n');
-            downloadTextFile(csv,`mycar_report_${localToday()}.csv`,'text/csv;charset=utf-8');
-            showToast('CSV report downloaded');
+          let selection;try{selection=selectedExportData();}catch(e){alert(e.message);return;}
+          const data=selection.data;
+          const rows=[['Category','Date','Vehicle','Plate','Details','Cost(RM)','Odometer(km)','Distance(km)','Litres','Notes']];
+          const vehicleName=id=>data.vehicles.find(v=>v.id===id) || {name:'Unknown',plate:''};
+          const add=(category,entry,details,notes,odo='',distance='',litres='')=>{
+              const v=vehicleName(entry.vehicleId);
+              rows.push([category,entry.date,v.name,v.plate,details,entry.cost ?? 0,odo,distance,litres,notes]);
+          };
+          data.fuel.forEach(f=>add('Fuel',f,f.fuelType,f.notes||f.station||'',f.odometer,'',f.liters));
+          data.maintenance.forEach(m=>add('Maintenance',m,m.type,(m.garage||'')+' '+(m.notes||''),m.odometer));
+          data.tax.forEach(t=>add('Tax/Insurance',t,t.type,(t.notes||'')+' | Expiry: '+(t.expiry||'')));
+          data.trips.forEach(t=>add('Trip',t,t.purpose,t.notes,t.endOdometer,t.distance));
+          data.other.forEach(o=>add('Other',o,o.description,o.notes));
+          const safeCSV=value=>{
+              const str=String(value??'');
+              const cell=typeof value==='number' ? str : (/^[=+@-]/.test(str.trimStart()) ? "'"+str : str);
+              return '"'+cell.replace(/"/g,'""')+'"';
+          };
+          const csv='\uFEFF'+rows.map(row=>row.map(safeCSV).join(',')).join('\r\n');
+          downloadTextFile(csv,`mycar_report_${selection.label}_${localToday()}.csv`,'text/csv;charset=utf-8');
+          showToast('CSV report downloaded');
         }
 
         function importJSON(event) {
@@ -1054,6 +1126,10 @@
 
         // No data is read or exposed until Supabase has validated the account.
         window.addEventListener('DOMContentLoaded', () => {
+            for(const id of ['field-date','fuel-odometer','fuel-liters']) {
+                document.getElementById(id)?.addEventListener('input',estimateFuelForm);
+                document.getElementById(id)?.addEventListener('change',estimateFuelForm);
+            }
             AuthManager.init({onLogin: initializeMYCARAfterLogin, onLogout: lockMYCARAfterLogout});
             document.getElementById('field-date').addEventListener('change', () => {
                 if (document.getElementById('form-type').value==='trip') fillSuggestedTripStart(false);

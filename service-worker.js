@@ -1,12 +1,12 @@
-/* MYCAR 3.1 - network-first shell updates, offline fallback, scoped caching. */
-const CACHE='mycar-shell-cloud-v7-hero-3-1';
-const VERSION='3.1.0';
+/* MYCAR 3.2 - network-first shell updates, offline fallback, scoped caching. */
+const CACHE='mycar-shell-cloud-v8-trends-3-2';
+const VERSION='3.2.0';
 const ASSETS=[
-  './','./index.html','./app.js?v=3.1.0','./auth.js?v=3.1.0',
-  './auth-config.js','./cloud-sync.js?v=3.1.0',
-  './assets/app.css?v=3.1.0','./assets/car-photos.css?v=3.1.0',
-  './assets/tng-import.css?v=3.1.0','./assets/auth.css?v=3.1.0',
-  './tng-import.js?v=3.1.0','./vehicle-photos.js?v=3.1.0',
+  './','./index.html','./app.js?v=3.2.0','./auth.js?v=3.2.0',
+  './auth-config.js','./cloud-sync.js?v=3.2.0',
+  './assets/app.css?v=3.2.0','./assets/car-photos.css?v=3.2.0',
+  './assets/tng-import.css?v=3.2.0','./assets/auth.css?v=3.2.0',
+  './tng-import.js?v=3.2.0','./vehicle-photos.js?v=3.2.0',
   './assets/toyota-corolla-cross-3q.webp',
   './manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'
 ];
