@@ -1,0 +1,41 @@
+name: MYCAR Cloud UI QA
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  playwright:
+    name: UI regression - Chromium and WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+      - name: Install Node.js on GitHub runner (not your PC)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install test dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install Chromium and WebKit on GitHub runner
+        run: npx playwright install --with-deps chromium webkit
+      - name: Run isolated UI tests
+        run: npm run test:ui
+        env:
+          CI: 'true'
+      - name: Upload screenshots, HTML report and traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mycar-playwright-report-${{ github.run_number }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: warn
