@@ -140,8 +140,10 @@ const MYCARTNG = (() => {
     const countByKey=new Map();
     const key=(date,category,cost)=>`${date}|${category}|${Math.round(Number(cost)*100)}`;
     for(const r of (existing.tax||[])){
-      if(r.vehicleId!==vehicleId || !(/toll|rfid|paydirect/i.test(String(r.type))))continue;
-      const k=key(r.date,'toll',r.cost);countByKey.set(k,(countByKey.get(k)||0)+1);
+      if(r.vehicleId!==vehicleId)continue;
+      const cat=/parking/i.test(String(r.type))?'parking':(/toll|rfid|paydirect/i.test(String(r.type))?'toll':null);
+      if(!cat)continue;
+      const k=key(r.date,cat,r.cost);countByKey.set(k,(countByKey.get(k)||0)+1);
     }
     for(const r of (existing.other||[])){
       if(r.vehicleId!==vehicleId|| !/parking/i.test(String(r.description)))continue;
@@ -233,9 +235,9 @@ const MYCARTNG = (() => {
     for(const r of now){
       const detail=[`Touch 'n Go ${r.type}`,r.description,r.time,r.reference?`Ref: ${r.reference}`:''].filter(Boolean).join(' · ');
       if(r.category==='toll'){
-        dbData.tax.push({id:r.id,vehicleId:activeVehicleId,date:r.date,type:'Toll Fee',cost:r.cost,expiry:'',notes:detail,importSource:SOURCE});
+        dbData.tax.push({id:r.id,vehicleId:activeVehicleId,date:r.date,type:'Toll Fee',cost:r.cost,expiry:'',notes:detail,time:r.time,importSource:SOURCE});
       }else{
-        dbData.other.push({id:r.id,vehicleId:activeVehicleId,date:r.date,description:'Parking Fee',cost:r.cost,notes:detail,importSource:SOURCE});
+        dbData.tax.push({id:r.id,vehicleId:activeVehicleId,date:r.date,type:'Parking Fee',cost:r.cost,expiry:'',notes:detail,time:r.time,importSource:SOURCE});
       }
     }
     saveData();refreshActiveView();

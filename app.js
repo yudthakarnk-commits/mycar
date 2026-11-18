@@ -84,6 +84,17 @@
           document.getElementById('fuel-est-distance').textContent=km===null?'—':fmtCount(km)+' km';
           document.getElementById('fuel-est-efficiency').textContent=km!==null && liters>0 ? (km/liters).toFixed(1)+' km/L':'—';
         }
+        let currentTrendSelection = '';
+        function showMonthlyTrendDetail(month) {
+          const detail=document.getElementById('mycar-v33-selected');
+          const buttons=document.querySelectorAll('#mycar-monthly-trends .mycar-v33-month');
+          buttons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.month===month)));
+          const point=window.mycarTrendData?.find(d=>d.month===month);
+          if(!detail||!point)return;
+          currentTrendSelection=month;
+          const period=new Date(month+'-01T12:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'});
+          detail.textContent=period+'  ·  Distance: '+fmtCount(point.km)+' km  ·  Expenses: '+money(point.cost);
+        }
         function renderMonthlyTrends() {
           const target=document.getElementById('mycar-monthly-trends');if(!target)return;
           const car=getActiveVehicle(),{year,month}=getFilterCriteria();
@@ -92,30 +103,37 @@
           const eligible=d=>{const m=getMonth(d);return !!m && (year==='all'||m.slice(0,4)===year) && (month==='all'||Number(m.slice(5))-1===Number(month));};
           for(const key of ['fuel','maintenance','tax','trips','other']){
             for(const entry of dbData[key]){
-              if(entry.vehicleId!==car.id || !eligible(entry.date))continue;
+              if(entry.vehicleId!==car.id||!eligible(entry.date))continue;
               const m=getMonth(entry.date);
               if(!series.has(m))series.set(m,{month:m,km:0,cost:0});
-              const row=series.get(m);row.cost+=Number(entry.cost)||0;
-              if(key==='trips')row.km+=Math.max(0,Number(entry.distance)||0);
+              const r=series.get(m);r.cost+=Number(entry.cost)||0;
+              if(key==='trips')r.km+=Math.max(0,Number(entry.distance)||0);
             }
           }
           const data=[...series.values()].sort((a,b)=>a.month.localeCompare(b.month));
-          const escape=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+          window.mycarTrendData=data;
           if(!data.length){target.innerHTML='<div class="mycar-trend-empty">No monthly records for this period.</div>';return;}
-          const make=(field,label,color,unit)=>{
-            const all=data.map(d=>d[field]);const max=Math.max(...all,1);
-            const W=Math.max(320,Math.min(720,70+data.length*49)),H=174,top=18,bottom=139,base=bottom-top;
-            const gap=(W-48)/data.length,bar=Math.min(24,gap*.54);
-            const marks=data.map((r,i)=>{
-              const x=31+i*gap+(gap-bar)/2;
-              const height=Math.max(0,r[field]/max*base);
-              const text=r.month.slice(5)+'/'+r.month.slice(2,4);
-              const value=unit==='RM'?money(r[field]):fmtCount(r[field])+' km';
-              return `<rect x="${x.toFixed(1)}" y="${(bottom-height).toFixed(1)}" width="${bar.toFixed(1)}" height="${height.toFixed(1)}" rx="3" fill="${color}"><title>${escape(r.month+': '+value)}</title></rect><text x="${(x+bar/2).toFixed(1)}" y="156" text-anchor="middle" fill="#64748b" font-size="9.5">${text}</text>`;
-            }).join('');
-            return `<div class="mycar-trend-panel"><div class="mycar-trend-label">${label}</div><div class="mycar-trend-scroll"><svg role="img" aria-label="${label} by month" class="mycar-trend-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"><line x1="29" y1="139" x2="${W-8}" y2="139" stroke="#cbd5e1"/><text x="28" y="18" fill="#64748b" text-anchor="end" font-size="9">${unit==='RM'?'RM':''}${Math.round(max).toLocaleString('en-US')}</text>${marks}</svg></div></div>`;
-          };
-          target.innerHTML=make('km','Logged trip distance (km)','#10b981','km')+make('cost','Expenses (RM)','#0f766e','RM');
+          // Dual normalized scales are intentional: RM and km have different units.
+          const maxCost=Math.max(1,...data.map(d=>d.cost));
+          const maxKm=Math.max(1,...data.map(d=>d.km));
+          const W=Math.max(310,Math.min(820,72+data.length*62)),H=195;
+          const startX=42,endX=W-16,top=20,baseline=158,height=baseline-top;
+          const step=(endX-startX)/data.length;
+          const points=data.map((d,i)=>({x:startX+(i+.5)*step,y:baseline-d.km/maxKm*height}));
+          const lines=points.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+          const marks=data.map((d,i)=>{
+            const p=points[i],bh=d.cost/maxCost*height;
+            const barX=p.x-Math.min(15,step*.24);
+            const label=d.month.slice(5)+'/'+d.month.slice(2,4);
+            const info=d.month+'; distance '+fmtCount(d.km)+' km; expenses '+money(d.cost);
+            return `<g class="mycar-v33-month" data-month="${d.month}" role="button" tabindex="0" aria-label="${info}" aria-pressed="false"><rect x="${barX.toFixed(1)}" y="${(baseline-bh).toFixed(1)}" width="${Math.min(30,step*.48).toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="#0f766e" opacity=".78"/><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#f59e0b" stroke="white" stroke-width="1.6"/><rect class="mycar-v33-hit" x="${(p.x-step*.46).toFixed(1)}" y="${top}" width="${(step*.92).toFixed(1)}" height="${baseline-top+8}" fill="transparent"/><text x="${p.x.toFixed(1)}" y="177" font-size="10" text-anchor="middle" fill="#64748b">${label}</text></g>`;
+          }).join('');
+          target.innerHTML=`<div class="mycar-v33-legend"><span><i class="mycar-v33-key" style="background:#0f766e"></i>Expenses (RM) · bars</span><span><i class="mycar-v33-key" style="background:#f59e0b"></i>Trip distance (km) · line</span></div><div class="mycar-v33-chart"><svg viewBox="0 0 ${W} ${H}" style="width:${W}px;max-width:none" role="group" aria-label="Combined monthly vehicle expenses and logged trip distance"><line x1="${startX}" y1="${baseline}" x2="${endX}" y2="${baseline}" stroke="#cbd5e1"/><line x1="${startX}" y1="${top}" x2="${startX}" y2="${baseline}" stroke="#cbd5e1" opacity=".6"/><text x="${startX-4}" y="15" fill="#0f766e" font-size="10" text-anchor="start">RM ${Math.round(maxCost).toLocaleString('en-US')}</text><text x="${endX}" y="15" fill="#b45309" font-size="10" text-anchor="end">${Math.round(maxKm).toLocaleString('en-US')} km</text><path d="${lines}" fill="none" stroke="#f59e0b" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>${marks}</svg></div><div id="mycar-v33-selected" role="status" aria-live="polite" class="mycar-v33-selected">Tap a month for values.</div>`;
+          for(const node of target.querySelectorAll('.mycar-v33-month')){
+            node.addEventListener('click',()=>showMonthlyTrendDetail(node.dataset.month));
+            node.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showMonthlyTrendDetail(node.dataset.month);}});
+          }
+          showMonthlyTrendDetail(data.some(d=>d.month===currentTrendSelection)?currentTrendSelection:data[data.length-1].month);
         }
         let pendingInstallPrompt = null;
         window.addEventListener('beforeinstallprompt', event => {
@@ -141,7 +159,7 @@
             navigator.serviceWorker.addEventListener('controllerchange',()=>{
                 if(changedController)return;
                 changedController=true;
-                const versionKey='mycar-sw-loaded-v3.2.0';
+                const versionKey='mycar-sw-loaded-v3.3.0';
                 const editorOpen=['app-modal','vehicle-modal','tng-import-modal'].some(id=>{
                     const element=document.getElementById(id);
                     return !!element && !element.classList.contains('hidden') && !element.hidden;
@@ -487,7 +505,7 @@
                                 <svg aria-hidden="true" focusable="false" class="app-icon text-sm" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M352 320c88.4 0 160-71.6 160-160c0-15.3-2.2-30.1-6.2-44.2c-3.1-10.8-16.4-13.2-24.3-5.3l-76.8 76.8c-3 3-7.1 4.7-11.3 4.7L336 192c-8.8 0-16-7.2-16-16l0-57.4c0-4.2 1.7-8.3 4.7-11.3l76.8-76.8c7.9-7.9 5.4-21.2-5.3-24.3C382.1 2.2 367.3 0 352 0C263.6 0 192 71.6 192 160c0 19.1 3.4 37.5 9.5 54.5L19.9 396.1C7.2 408.8 0 426.1 0 444.1C0 481.6 30.4 512 67.9 512c18 0 35.3-7.2 48-19.9L297.5 310.5c17 6.2 35.4 9.5 54.5 9.5zM80 408a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"></path></svg>
                             </div>
                             <div>
-                                <h4 class="font-bold text-slate-800 text-xs">${escapeHTML(item.type)}</h4>
+                                <h4 class="font-bold text-slate-800 text-xs">${escapeHTML(isTollExpense(item.type)?'Toll Fee':isParkingExpense(item.type)?'Parking':item.type)}</h4>
                                 <p class="text-[10px] text-slate-500">${item.date} | ${escapeHTML(item.garage || 'Workshop')} (${item.odometer} km)</p>
                             </div>
                         </div>
@@ -511,7 +529,7 @@
             const list = dbData.tax.filter(t => t.vehicleId === activeVeh.id && filterByDate(t.date)).sort((a,b) => new Date(b.date) - new Date(a.date));
 
             if (list.length === 0) {
-                container.innerHTML = `<div class="text-center py-6 text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">No tax or insurance records found.</div>`;
+                container.innerHTML = `<div class="text-center py-6 text-xs text-slate-400 bg-white rounded-2xl border border-slate-200">No expenses found for this period.</div>`;
                 return;
             }
 
@@ -525,7 +543,7 @@
                             </div>
                             <div>
                                 <h4 class="font-bold text-slate-800 text-xs">${escapeHTML(item.type)}</h4>
-                                <p class="text-[10px] text-slate-500">${item.date} | Expiry: ${item.expiry || 'N/A'}</p>
+                                <p class="text-[10px] text-slate-500">${escapeHTML(item.date)}${isTermExpense(item.type) && item.expiry ? ' | Expires: '+escapeHTML(item.expiry):''}${item.time?' · '+escapeHTML(item.time):''}${item.notes?' · '+escapeHTML(item.notes):''}</p>
                             </div>
                         </div>
                         <div class="flex items-center space-x-3">
@@ -661,6 +679,39 @@
             container.innerHTML = html;
         }
 
+        const isTermExpense = type => /road tax|insurance/i.test(String(type||''));
+        const isTollExpense = type => /toll|rfid|smarttag/i.test(String(type||''));
+        const isParkingExpense = type => /parking/i.test(String(type||''));
+        function updateExpenseFields() {
+          const select=document.getElementById('tax-type');if(!select)return;
+          const type=select.value;
+          const term=isTermExpense(type),quick=isTollExpense(type)||isParkingExpense(type);
+          const expiry=document.getElementById('tax-expiry-group');
+          const time=document.getElementById('tax-time-group');
+          const again=document.getElementById('expense-add-another');
+          expiry.hidden=!term;time.hidden=!quick;again.hidden=!quick;
+          if(!term)document.getElementById('tax-expiry').value='';
+          const label=document.getElementById('tax-notes-label'),field=document.getElementById('tax-notes');
+          if(isTollExpense(type)){label.textContent='Toll plaza / route';field.placeholder='e.g. Kapar Barrier / PLUS';}
+          else if(isParkingExpense(type)){label.textContent='Parking location';field.placeholder='e.g. Mall car park / zone';}
+          else if(term){label.textContent='Provider / policy reference';field.placeholder='e.g. JPJ / insurance company';}
+          else {label.textContent='Expense description / notes';field.placeholder='Describe the expense';}
+          const title=document.getElementById('modal-title');
+          title.textContent=(document.getElementById('form-id').value?'Edit ':'Add ')+(quick?(isParkingExpense(type)?'Parking':'Toll'):'Vehicle Expense')+' Record';
+        }
+        function saveAndAddAnotherExpense() {
+          if(document.getElementById('form-type').value!=='tax')return;
+          const type=document.getElementById('tax-type').value;
+          const date=document.getElementById('field-date').value;
+          if(!document.getElementById('entry-form').reportValidity())return;
+          const saved=handleFormSubmit({preventDefault(){}});
+          if(saved===false)return;
+          openModal('tax');
+          document.getElementById('field-date').value=date;
+          document.getElementById('tax-type').value=type;
+          updateExpenseFields();
+          document.getElementById('tax-cost').focus();
+        }
         function openModal(type) {
             const modal = document.getElementById('app-modal');
             const titleEl = document.getElementById('modal-title');
@@ -696,6 +747,7 @@
                 estimateFuelForm();
             }
 
+            if(type==='tax') {document.getElementById('tax-type').value='Toll Pass / RFID / SmartTAG';updateExpenseFields();}
             if (type === 'trip') fillSuggestedTripStart(true);
             modal.classList.remove('hidden');
         }
@@ -799,7 +851,13 @@
                 put('maint-odometer',item.odometer); put('maint-cost',item.cost); put('maint-type',item.type);
                 put('maint-garage',item.garage); put('maint-notes',item.notes);
             } else if(type==='tax') {
-                put('tax-type',item.type); put('tax-cost',item.cost); put('tax-expiry',item.expiry); put('tax-notes',item.notes);
+                // Preserve imported types when editing older statements.
+            const typeSelect=document.getElementById('tax-type');
+            if(item.type && !Array.from(typeSelect.options).some(o=>o.value===item.type)) {
+              const opt=new Option(item.type,item.type);typeSelect.add(opt);
+            }
+            put('tax-type',item.type); put('tax-cost',item.cost); put('tax-expiry',item.expiry); put('tax-notes',item.notes);
+            put('tax-time',item.time);updateExpenseFields();
             } else if(type==='trip') {
                 put('trip-purpose',item.purpose);put('trip-start-odo',item.startOdometer);
                 put('trip-end-odo',item.endOdometer);put('trip-notes',item.notes);
@@ -845,10 +903,12 @@
             } else if (type === 'tax') {
                 const tType = document.getElementById('tax-type').value;
                 const cost = Number(document.getElementById('tax-cost').value) || 0;
-                const expiry = document.getElementById('tax-expiry').value;
-                const notes = document.getElementById('tax-notes').value;
-
-                upsertRecord('tax', { id, vehicleId: activeVeh.id, date, type: tType, cost, expiry, notes });
+                const expiry = isTermExpense(tType) ? document.getElementById('tax-expiry').value : '';
+                const notes = document.getElementById('tax-notes').value.trim();
+                const time = (isTollExpense(tType)||isParkingExpense(tType)) ? document.getElementById('tax-time').value : '';
+                if(!Number.isFinite(cost)||cost<=0){alert('Please enter a positive expense amount.');return false;}
+                // Unique record ID per toll gate, including multiple payments on one date.
+                upsertRecord('tax', { id, vehicleId: activeVeh.id, date, type: tType, cost, expiry, notes, time });
             } else if (type === 'trip') {
                 const purpose = document.getElementById('trip-purpose').value;
                 const startOdo = Number(document.getElementById('trip-start-odo').value) || 0;
@@ -874,6 +934,7 @@
             updateVehicleSelector();
             refreshActiveView();
             showToast("Record saved successfully");
+            return true;
         }
 
         function deleteItem(collection, id) {
@@ -1013,7 +1074,7 @@
           };
           data.fuel.forEach(f=>add('Fuel',f,f.fuelType,f.notes||f.station||'',f.odometer,'',f.liters));
           data.maintenance.forEach(m=>add('Maintenance',m,m.type,(m.garage||'')+' '+(m.notes||''),m.odometer));
-          data.tax.forEach(t=>add('Tax/Insurance',t,t.type,(t.notes||'')+' | Expiry: '+(t.expiry||'')));
+          data.tax.forEach(t=>add('Expenses',t,t.type,(t.notes||'')+(isTermExpense(t.type)&&t.expiry?' | Expiry: '+t.expiry:'')+(t.time?' | Time: '+t.time:'')));
           data.trips.forEach(t=>add('Trip',t,t.purpose,t.notes,t.endOdometer,t.distance));
           data.other.forEach(o=>add('Other',o,o.description,o.notes));
           const safeCSV=value=>{

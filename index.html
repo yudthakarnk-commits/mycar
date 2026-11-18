@@ -11,13 +11,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYCAR">
     <link rel="manifest" href="./manifest.webmanifest">
-    <link rel="stylesheet" href="./assets/auth.css?v=3.2.0">
+    <link rel="stylesheet" href="./assets/auth.css?v=3.3.0">
     <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
     <!-- Precompiled Tailwind CSS (offline-ready) -->
-    <link rel="stylesheet" href="./assets/app.css?v=3.2.0">
-    <link rel="stylesheet" href="./assets/car-photos.css?v=3.2.0">
-    <link rel="stylesheet" href="./assets/tng-import.css?v=3.2.0">
+    <link rel="stylesheet" href="./assets/app.css?v=3.3.0">
+    <link rel="stylesheet" href="./assets/car-photos.css?v=3.3.0">
+    <link rel="stylesheet" href="./assets/tng-import.css?v=3.3.0">
     <!-- MYCAR v3.1: critical hero layout is inline to avoid a mixed-cache layout. -->
     <style id="mycar-v31-critical-layout">
       .mycar-hero-main{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(104px,43%)!important;align-items:center!important;gap:4px!important;min-height:112px!important}
@@ -27,7 +27,7 @@
       .mycar-car-photo img{display:block;width:100%;height:100%;object-fit:contain!important;object-position:center;background:transparent!important;filter:none!important}
       @media(max-width:365px){.mycar-hero-main{grid-template-columns:minmax(0,1fr) minmax(99px,42%)!important;min-height:98px!important}.mycar-hero-amount h2{font-size:1.28rem!important}.mycar-car-photo{height:97px!important}}
     </style>
-    <style id="mycar-v32-style">
+    <style id="mycar-v33-style">
       /* v3.2: keep keyboard focus rings visible even inside a scrolling modal */
       #vehicle-modal .overflow-y-auto{padding:7px 7px 16px!important;margin:-4px -4px 0!important;scroll-padding:10px}
       #vehicle-modal input:focus-visible,#vehicle-modal select:focus-visible,#vehicle-modal button:focus-visible{outline:2px solid #18a06c!important;outline-offset:1px;box-shadow:0 0 0 3px rgba(16,185,129,.13)!important}
@@ -81,6 +81,21 @@
         .app-shell { position: relative; }
         @media (min-width: 640px) { .app-shell { height: min(880px, calc(100dvh - 32px)); } }
         @media (max-width: 639px) { body { padding: 0; } }
+    </style>
+
+    <style id="mycar-v33-ui">
+      #fields-tax .grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+      #fields-tax .grid > div,#fields-tax input,#fields-tax select{min-width:0;max-width:100%;box-sizing:border-box}
+      #entry-form input:focus,#entry-form select:focus,#vehicle-form input:focus,#vehicle-form select:focus{outline:2px solid #34a77f!important;outline-offset:-2px!important;box-shadow:0 0 0 1px rgba(52,167,127,.12)!important}
+      #fields-tax #tax-expiry-group[hidden],#fields-tax #tax-time-group[hidden],#expense-add-another[hidden]{display:none!important}
+      .mycar-v33-chart{width:100%;overflow-x:auto;padding:4px 0 8px}
+      .mycar-v33-chart svg{display:block;width:100%;min-width:290px;max-height:215px}
+      .mycar-v33-legend{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 5px;font-size:11px;color:#475569}
+      .mycar-v33-key{display:inline-block;width:11px;height:11px;vertical-align:middle;border-radius:3px;margin-right:5px}
+      .mycar-v33-selected{font-size:12px;color:#0f172a;background:#eff8f5;border:1px solid #c7e9dc;border-radius:12px;padding:10px 12px;margin-top:8px;min-height:39px}
+      .mycar-v33-month{cursor:pointer;outline:none}
+      .mycar-v33-month:focus-visible .mycar-v33-hit{stroke:#064e3b;stroke-width:2}
+      @media(max-width:390px){#fields-tax .grid{grid-template-columns:1fr}}
     </style>
 </head>
 <body class="bg-slate-950 flex justify-center items-center min-h-screen p-0 sm:p-4">
@@ -261,7 +276,7 @@
                             </div>
                             <span class="text-[10px] text-slate-400 group-hover:text-emerald-600 font-semibold">View All</span>
                         </div>
-                        <p class="text-[11px] text-slate-500 font-medium">Tax & Insurance</p>
+                        <p class="text-[11px] text-slate-500 font-medium">Expenses</p>
                         <h4 class="text-base font-bold text-slate-900 mt-0.5" id="card-tax-cost">RM0.00</h4>
                         <p class="text-[10px] text-slate-400 mt-1" id="card-tax-count">0 logs</p>
                     </div>
@@ -281,7 +296,7 @@
 
                 <!-- Monthly trends: rendered from actual records and selected period -->
                 <section class="mycar-trends bg-white p-4 rounded-3xl shadow-sm border border-slate-200" aria-label="Monthly distance and expenses">
-                  <div class="mycar-trend-heading"><h3 class="font-bold text-slate-800 text-sm">Monthly trends</h3><span class="text-[11px] text-slate-500">Based on logged records</span></div>
+                  <div class="mycar-trend-heading"><h3 class="font-bold text-slate-800 text-sm">Monthly trends</h3><span class="text-[11px] text-slate-500">Tap a month to view values</span></div>
                   <div id="mycar-monthly-trends" class="mycar-trend-panels" aria-live="polite"></div>
                 </section>
 
@@ -321,13 +336,13 @@
                 <div id="maintenance-list" class="space-y-2.5"></div>
             </div>
 
-            <!-- TAB 4: Tax & Insurance -->
+            <!-- TAB 4: Expenses: existing tax collection preserved for compatibility -->
             <div id="tab-tax" class="tab-view space-y-3 hidden">
                 <div class="flex items-center justify-between">
-                    <h3 class="font-bold text-slate-800 text-sm">Tax, Insurance & Tolls</h3>
+                    <h3 class="font-bold text-slate-800 text-sm">Expenses</h3>
                     <button onclick="openModal('tax')" class="bg-emerald-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow hover:bg-emerald-700 transition flex items-center space-x-1.5">
                         <svg aria-hidden="true" focusable="false" class="app-icon text-[10px]" viewBox="0 0 448 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z"></path></svg>
-                        <span>Add Tax/Ins</span>
+                        <span>Add Expense</span>
                     </button>
                 </div>
                 <button type="button" onclick="MYCARTNG.open()" class="w-full flex items-center justify-center gap-2 bg-white border border-emerald-300 text-emerald-800 rounded-xl py-2.5 text-xs font-bold shadow-sm">
@@ -375,7 +390,7 @@
             </button>
             <button onclick="switchTab('tax')" id="nav-tax" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-slate-600 transition flex-1 py-1">
                 <svg aria-hidden="true" focusable="false" class="app-icon text-base" viewBox="0 0 384 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM64 80c0-8.8 7.2-16 16-16l64 0c8.8 0 16 7.2 16 16s-7.2 16-16 16L80 96c-8.8 0-16-7.2-16-16zm0 64c0-8.8 7.2-16 16-16l64 0c8.8 0 16 7.2 16 16s-7.2 16-16 16l-64 0c-8.8 0-16-7.2-16-16zm128 72c8.8 0 16 7.2 16 16l0 17.3c8.5 1.2 16.7 3.1 24.1 5.1c8.5 2.3 13.6 11 11.3 19.6s-11 13.6-19.6 11.3c-11.1-3-22-5.2-32.1-5.3c-8.4-.1-17.4 1.8-23.6 5.5c-5.7 3.4-8.1 7.3-8.1 12.8c0 3.7 1.3 6.5 7.3 10.1c6.9 4.1 16.6 7.1 29.2 10.9l.5 .1s0 0 0 0s0 0 0 0c11.3 3.4 25.3 7.6 36.3 14.6c12.1 7.6 22.4 19.7 22.7 38.2c.3 19.3-9.6 33.3-22.9 41.6c-7.7 4.8-16.4 7.6-25.1 9.1l0 17.1c0 8.8-7.2 16-16 16s-16-7.2-16-16l0-17.8c-11.2-2.1-21.7-5.7-30.9-8.9c0 0 0 0 0 0c-2.1-.7-4.2-1.4-6.2-2.1c-8.4-2.8-12.9-11.9-10.1-20.2s11.9-12.9 20.2-10.1c2.5 .8 4.8 1.6 7.1 2.4c0 0 0 0 0 0s0 0 0 0s0 0 0 0c13.6 4.6 24.6 8.4 36.3 8.7c9.1 .3 17.9-1.7 23.7-5.3c5.1-3.2 7.9-7.3 7.8-14c-.1-4.6-1.8-7.8-7.7-11.6c-6.8-4.3-16.5-7.4-29-11.2l-1.6-.5s0 0 0 0c-11-3.3-24.3-7.3-34.8-13.7c-12-7.2-22.6-18.9-22.7-37.3c-.1-19.4 10.8-32.8 23.8-40.5c7.5-4.4 15.8-7.2 24.1-8.7l0-17.3c0-8.8 7.2-16 16-16z"></path></svg>
-                <span class="text-[10px] font-semibold">Tax/Ins</span>
+                <span class="text-[10px] font-semibold">Expenses</span>
             </button>
             <button onclick="switchTab('trips')" id="nav-trips" class="flex flex-col items-center space-y-1 text-slate-400 hover:text-slate-600 transition flex-1 py-1">
                 <svg aria-hidden="true" focusable="false" class="app-icon text-base" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M512 96c0 50.2-59.1 125.1-84.6 155c-3.8 4.4-9.4 6.1-14.5 5L320 256c-17.7 0-32 14.3-32 32s14.3 32 32 32l96 0c53 0 96 43 96 96s-43 96-96 96l-276.4 0c8.7-9.9 19.3-22.6 30-36.8c6.3-8.4 12.8-17.6 19-27.2L416 448c17.7 0 32-14.3 32-32s-14.3-32-32-32l-96 0c-53 0-96-43-96-96s43-96 96-96l39.8 0c-21-31.5-39.8-67.7-39.8-96c0-53 43-96 96-96s96 43 96 96zM117.1 489.1c-3.8 4.3-7.2 8.1-10.1 11.3l-1.8 2-.2-.2c-6 4.6-14.6 4-20-1.8C59.8 473 0 402.5 0 352c0-53 43-96 96-96s96 43 96 96c0 30-21.1 67-43.5 97.9c-10.7 14.7-21.7 28-30.8 38.5l-.6 .7zM128 352a32 32 0 1 0 -64 0 32 32 0 1 0 64 0zM416 128a32 32 0 1 0 0-64 32 32 0 1 0 0 64z"></path></svg>
@@ -494,11 +509,14 @@
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="space-y-1">
                                     <label class="text-xs font-semibold text-slate-600">Expense Category</label>
-                                    <select id="tax-type" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
-                                        <option value="Annual Vehicle Tax (Road Tax)">Annual Vehicle Tax (Road Tax)</option>
+                                    <select id="tax-type" onchange="updateExpenseFields()" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                        <option value="Toll Pass / RFID / SmartTAG">Toll / RFID / SmartTAG</option>
+                                        <option value="Toll Fee">Toll Fee (imported records)</option>
+                                        <option value="Parking Fee">Parking</option>
+                                        <option value="Annual Vehicle Tax (Road Tax)">Road Tax</option>
                                         <option value="Comprehensive Insurance">Comprehensive Insurance</option>
                                         <option value="Third-Party Insurance">Third-Party Insurance</option>
-                                        <option value="Toll Pass / RFID / SmartTAG">Toll Pass / RFID / SmartTAG</option>
+                                        <option value="Other Vehicle Expense">Other vehicle expense</option>
                                     </select>
                                 </div>
                                 <div class="space-y-1">
@@ -506,14 +524,20 @@
                                     <input type="number" step="0.01" id="tax-cost" placeholder="e.g. 90.00" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                                 </div>
                             </div>
-                            <div class="space-y-1">
-                                <label class="text-xs font-semibold text-slate-600">Expiry Date (Triggers Alert)</label>
+                            <div class="space-y-1" id="tax-expiry-group">
+                                <label class="text-xs font-semibold text-slate-600">Expiry Date (reminders for tax / insurance)</label>
                                 <input type="date" id="tax-expiry" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                             </div>
                             <div class="space-y-1">
-                                <label class="text-xs font-semibold text-slate-600">Provider / Notes</label>
-                                <input type="text" id="tax-notes" placeholder="e.g. JPJ, Etiqa Takaful..." class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                <label id="tax-notes-label" class="text-xs font-semibold text-slate-600">Toll plaza / route</label>
+                                <input type="text" id="tax-notes" placeholder="e.g. Grand Sepadu – Kapar Barrier" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
                             </div>
+                            <div class="space-y-1" id="tax-time-group">
+                                <label class="text-xs font-semibold text-slate-600" for="tax-time">Passage / payment time (optional)</label>
+                                <input type="time" id="tax-time" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2.5 text-sm">
+                                <p class="text-[11px] text-slate-500">Record each toll separately, even when you pass several gates in one day.</p>
+                            </div>
+                            <button type="button" id="expense-add-another" onclick="saveAndAddAnotherExpense()" class="w-full rounded-xl border border-emerald-500 text-emerald-800 bg-emerald-50 py-2.5 font-semibold text-xs">Save & add another toll / parking</button>
                         </div>
 
                         <!-- TRIP FIELDS -->
@@ -678,7 +702,7 @@
                         <input type="text" disabled value="Malaysian Ringgit (RM)" class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-600 font-bold">
                     </div>
                     <div class="pt-2 space-y-2">
-                        <div class="text-center text-[11px] text-slate-500">MYCAR v3.2.0 · PWA auto-update enabled</div>
+                        <div class="text-center text-[11px] text-slate-500">MYCAR v3.3.0 · PWA auto-update enabled</div>
                         <button type="button" onclick="checkMYCARUpdates()" class="w-full bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold py-2.5 rounded-xl text-xs transition">Check for app updates</button>
                         <button id="install-app-btn" onclick="installMYCAR()" class="hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs transition">Install MYCAR App</button>
                         <p id="install-hint" class="text-[11px] text-slate-500">On Android: browser menu → Install app. On iPhone: Share → Add to Home Screen.</p>
@@ -745,10 +769,10 @@
 
     <!-- JavaScript Application Logic -->
     <script src="./auth-config.js" defer></script>
-    <script src="./auth.js?v=3.2.0" defer></script>
-    <script src="./cloud-sync.js?v=3.2.0" defer></script>
-    <script src="./app.js?v=3.2.0" defer></script>
-    <script src="./vehicle-photos.js?v=3.2.0" defer></script>
-    <script src="./tng-import.js?v=3.2.0" defer></script>
+    <script src="./auth.js?v=3.3.0" defer></script>
+    <script src="./cloud-sync.js?v=3.3.0" defer></script>
+    <script src="./app.js?v=3.3.0" defer></script>
+    <script src="./vehicle-photos.js?v=3.3.0" defer></script>
+    <script src="./tng-import.js?v=3.3.0" defer></script>
 </body>
 </html>
