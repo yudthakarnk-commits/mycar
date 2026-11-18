@@ -119,16 +119,22 @@
           const W=Math.max(310,Math.min(820,72+data.length*62)),H=195;
           const startX=42,endX=W-16,top=20,baseline=158,height=baseline-top;
           const step=(endX-startX)/data.length;
-          const points=data.map((d,i)=>({x:startX+(i+.5)*step,y:baseline-d.km/maxKm*height}));
-          const lines=points.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+          // Grouped bar chart: each unit (RM/km) has its own normalized maximum.
+          // Two colors and adjacent bars distinguish the units; numeric values are
+          // available by tapping or keyboard-selecting a month.
+          const barWidth=Math.max(8,Math.min(18,step*.27));
+          const gap=Math.max(2,Math.min(6,step*.08));
           const marks=data.map((d,i)=>{
-            const p=points[i],bh=d.cost/maxCost*height;
-            const barX=p.x-Math.min(15,step*.24);
+            const center=startX+(i+.5)*step;
+            const expenseHeight=Math.max(0,d.cost/maxCost*height);
+            const distanceHeight=Math.max(0,d.km/maxKm*height);
+            const expenseX=center-gap/2-barWidth;
+            const distanceX=center+gap/2;
             const label=d.month.slice(5)+'/'+d.month.slice(2,4);
             const info=d.month+'; distance '+fmtCount(d.km)+' km; expenses '+money(d.cost);
-            return `<g class="mycar-v33-month" data-month="${d.month}" role="button" tabindex="0" aria-label="${info}" aria-pressed="false"><rect x="${barX.toFixed(1)}" y="${(baseline-bh).toFixed(1)}" width="${Math.min(30,step*.48).toFixed(1)}" height="${bh.toFixed(1)}" rx="3" fill="#0f766e" opacity=".78"/><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="#f59e0b" stroke="white" stroke-width="1.6"/><rect class="mycar-v33-hit" x="${(p.x-step*.46).toFixed(1)}" y="${top}" width="${(step*.92).toFixed(1)}" height="${baseline-top+8}" fill="transparent"/><text x="${p.x.toFixed(1)}" y="177" font-size="10" text-anchor="middle" fill="#64748b">${label}</text></g>`;
+            return `<g class="mycar-v33-month" data-month="${d.month}" role="button" tabindex="0" aria-label="${info}" aria-pressed="false"><rect x="${expenseX.toFixed(1)}" y="${(baseline-expenseHeight).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${expenseHeight.toFixed(1)}" rx="3" fill="#0f766e"/><rect x="${distanceX.toFixed(1)}" y="${(baseline-distanceHeight).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${distanceHeight.toFixed(1)}" rx="3" fill="#f59e0b"/><rect class="mycar-v33-hit" x="${(center-step*.46).toFixed(1)}" y="${top}" width="${(step*.92).toFixed(1)}" height="${baseline-top+8}" fill="transparent"/><text x="${center.toFixed(1)}" y="177" font-size="10" text-anchor="middle" fill="#64748b">${label}</text></g>`;
           }).join('');
-          target.innerHTML=`<div class="mycar-v33-legend"><span><i class="mycar-v33-key" style="background:#0f766e"></i>Expenses (RM) · bars</span><span><i class="mycar-v33-key" style="background:#f59e0b"></i>Trip distance (km) · line</span></div><div class="mycar-v33-chart"><svg viewBox="0 0 ${W} ${H}" style="width:${W}px;max-width:none" role="group" aria-label="Combined monthly vehicle expenses and logged trip distance"><line x1="${startX}" y1="${baseline}" x2="${endX}" y2="${baseline}" stroke="#cbd5e1"/><line x1="${startX}" y1="${top}" x2="${startX}" y2="${baseline}" stroke="#cbd5e1" opacity=".6"/><text x="${startX-4}" y="15" fill="#0f766e" font-size="10" text-anchor="start">RM ${Math.round(maxCost).toLocaleString('en-US')}</text><text x="${endX}" y="15" fill="#b45309" font-size="10" text-anchor="end">${Math.round(maxKm).toLocaleString('en-US')} km</text><path d="${lines}" fill="none" stroke="#f59e0b" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>${marks}</svg></div><div id="mycar-v33-selected" role="status" aria-live="polite" class="mycar-v33-selected">Tap a month for values.</div>`;
+          target.innerHTML=`<div class="mycar-v33-legend"><span><i class="mycar-v33-key" style="background:#0f766e"></i>Expenses (RM)</span><span><i class="mycar-v33-key" style="background:#f59e0b"></i>Trip distance (km)</span></div><div class="mycar-v33-chart"><svg viewBox="0 0 ${W} ${H}" style="width:${W}px;max-width:none" role="group" aria-label="Monthly grouped bar chart: green expenses in RM, amber trip distance in km; tap a month for exact values"><line x1="${startX}" y1="${baseline}" x2="${endX}" y2="${baseline}" stroke="#cbd5e1"/><line x1="${startX}" y1="${top}" x2="${startX}" y2="${baseline}" stroke="#cbd5e1" opacity=".6"/><text x="${startX-4}" y="15" fill="#0f766e" font-size="10" text-anchor="start">RM ${Math.round(maxCost).toLocaleString('en-US')}</text><text x="${endX}" y="15" fill="#b45309" font-size="10" text-anchor="end">${Math.round(maxKm).toLocaleString('en-US')} km</text>${marks}</svg></div><div id="mycar-v33-selected" role="status" aria-live="polite" class="mycar-v33-selected">Tap a month for values.</div>`;
           for(const node of target.querySelectorAll('.mycar-v33-month')){
             node.addEventListener('click',()=>showMonthlyTrendDetail(node.dataset.month));
             node.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showMonthlyTrendDetail(node.dataset.month);}});
@@ -159,7 +165,7 @@
             navigator.serviceWorker.addEventListener('controllerchange',()=>{
                 if(changedController)return;
                 changedController=true;
-                const versionKey='mycar-sw-loaded-v3.3.0';
+                const versionKey='mycar-sw-loaded-v3.3.1';
                 const editorOpen=['app-modal','vehicle-modal','tng-import-modal'].some(id=>{
                     const element=document.getElementById(id);
                     return !!element && !element.classList.contains('hidden') && !element.hidden;
