@@ -14,7 +14,12 @@ const MYCARCloud = (() => {
   const isSafeRecord = (item) => !!item && typeof item.id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(item.id);
   function notify(message, state='idle') {
     const target=document.getElementById('mycar-sync-status');
-    if(target) { target.textContent=message; target.dataset.syncState=state; target.title=message; }
+    if(target) {
+      // Fixed-size status dot: update accessibility metadata, never flowing header text.
+      target.dataset.syncState=state;
+      target.title=message+' (tap to sync)';
+      target.setAttribute('aria-label',message+'. Tap to sync now.');
+    }
     const details=document.getElementById('mycar-sync-detail');
     if(details) details.textContent=message+(lastSuccessful ? ' · Last sync '+lastSuccessful.toLocaleString() : '');
   }
@@ -125,7 +130,7 @@ const MYCARCloud = (() => {
   }
   async function syncNow() {
     if(!active || busy || !bridge || !AuthManager.currentUser || AuthManager.currentUser.id!==userId) return;
-    if(typeof navigator.onLine==='boolean' && !navigator.onLine) {notify('Offline · changes saved locally','pending');return;}
+    if(typeof navigator.onLine==='boolean' && !navigator.onLine) {notify('Offline · changes saved locally','offline');return;}
     const expectedGeneration=generation;
     busy=true;
     notify(currentPendingCount()?'Uploading changes…':'Checking cloud…','working');
@@ -181,6 +186,7 @@ const MYCARCloud = (() => {
     busy=false;
   }
   window.addEventListener('online',()=>{if(active)schedule(0);});
+  window.addEventListener('offline',()=>{if(active)notify('Offline · changes saved locally','offline');});
   window.addEventListener('focus',()=>{if(active)schedule(0);});
   document.addEventListener('visibilitychange',()=>{if(active && !document.hidden)schedule(0);});
   return {start,stop,syncNow,onLocalChange,get pendingCount(){return currentPendingCount();}};

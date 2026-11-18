@@ -292,6 +292,19 @@
             const grandTotal = totalFuel + totalMaint + totalTax + totalOther;
 
             const totalDistance = trips.reduce((acc, cur) => acc + (Number(cur.distance) || 0), 0);
+            // Cumulative odometer is NOT the same as the sum of logged journeys.
+            // Show the latest measured odometer within the selected period. For all-time
+            // views, include the stored current odometer when it is the latest reading.
+            const readings = [
+              ...fuels.map(x => ({date:x.date, odo:Number(x.odometer)})),
+              ...maints.map(x => ({date:x.date, odo:Number(x.odometer)})),
+              ...trips.map(x => ({date:x.date, odo:Number(x.endOdometer)}))
+            ].filter(x => x.date && x.odo > 0 && Number.isFinite(x.odo));
+            readings.sort((a,b) => a.date.localeCompare(b.date) || a.odo-b.odo);
+            const recordedOdo=readings.length ? readings[readings.length-1].odo : null;
+            const criteria=getFilterCriteria();
+            const allPeriods=criteria.year==='all' && criteria.month==='all';
+            const odometer=allPeriods ? Math.max(Number(activeVeh.currentOdometer)||0,recordedOdo||0) : recordedOdo;
             const avgEff = getEfficiencyForPeriod(activeVeh.id);
 
             const sumCostEl = document.getElementById('sum-total-cost');
@@ -299,7 +312,9 @@
             const sumEffEl = document.getElementById('sum-avg-efficiency');
 
             if (sumCostEl) sumCostEl.textContent = `RM${grandTotal.toFixed(2)}`;
-            if (sumDistEl) sumDistEl.textContent = `${totalDistance} km`;
+            if (sumDistEl) sumDistEl.textContent = odometer == null ? '—' : `${odometer.toLocaleString('en-US')} km`;
+            const tripSumEl = document.getElementById('sum-trip-distance');
+            if (tripSumEl) tripSumEl.textContent = `Logged trips: ${totalDistance.toLocaleString('en-US')} km`;
             if (sumEffEl) sumEffEl.textContent = avgEff === '—' ? '—' : `${avgEff} km/L`;
 
             const cfCost = document.getElementById('card-fuel-cost');
@@ -563,6 +578,7 @@
 
             document.getElementById('entry-form').reset();
             document.getElementById('form-id').value='';
+            document.getElementById('trip-start-odo').dataset.autoStart='';
             formTypeEl.value = type;
             dateEl.value = localToday();
             document.getElementById('receipt-preview').classList.add('hidden');
@@ -587,7 +603,31 @@
                 }
             }
 
+            if (type === 'trip') fillSuggestedTripStart(true);
             modal.classList.remove('hidden');
+        }
+
+        // For a new journey, use the most recent preceding journey's END odometer.
+        // Never overwrite a manually edited start value or an existing record.
+        function fillSuggestedTripStart(force=false) {
+            const id=document.getElementById('form-id').value;
+            if(id) return;
+            const field=document.getElementById('trip-start-odo');
+            if(!field) return;
+            if(!force && field.value && field.dataset.autoStart!=='yes') return;
+            const date=document.getElementById('field-date').value;
+            const car=getActiveVehicle();
+            const previous=dbData.trips.filter(t => t.vehicleId===car.id && t.date<=date && Number(t.endOdometer)>0)
+                .sort((a,b)=> b.date.localeCompare(a.date) || Number(b.endOdometer)-Number(a.endOdometer))[0];
+            if(previous) {
+                field.value=previous.endOdometer;
+                field.dataset.autoStart='yes';
+                document.getElementById('trip-start-hint').textContent=`Auto-filled from previous trip (${previous.date}).`;
+            } else {
+                if(field.dataset.autoStart==='yes') field.value='';
+                field.dataset.autoStart='';
+                document.getElementById('trip-start-hint').textContent='No earlier trip found. Enter starting odometer manually.';
+            }
         }
 
         function closeModal() {
@@ -976,5 +1016,14 @@
         // No data is read or exposed until Supabase has validated the account.
         window.addEventListener('DOMContentLoaded', () => {
             AuthManager.init({onLogin: initializeMYCARAfterLogin, onLogout: lockMYCARAfterLogout});
+            document.getElementById('field-date').addEventListener('change', () => {
+                if (document.getElementById('form-type').value==='trip') fillSuggestedTripStart(false);
+            });
+            document.getElementById('trip-start-odo').addEventListener('input',e => {
+                if(e.isTrusted) {
+                    e.target.dataset.autoStart='';
+                    document.getElementById('trip-start-hint').textContent='Manual starting odometer (will not be overwritten).';
+                }
+            });
         });
     

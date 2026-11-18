@@ -1,5 +1,5 @@
-const CACHE = 'mycar-shell-cloud-v4';
-const ASSETS = ['./','./index.html','./app.js','./auth.js','./auth-config.js','./cloud-sync.js','./assets/app.css','./assets/auth.css','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
+const CACHE = 'mycar-shell-cloud-v6-tng-summary';
+const ASSETS = ['./','./index.html','./app.js','./auth.js','./auth-config.js','./cloud-sync.js','./assets/app.css','./assets/car-photos.css','./assets/tng-import.css','./tng-import.js','./vehicle-photos.js','./assets/auth.css','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
 self.addEventListener('install', (event)=> {
  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
 });
