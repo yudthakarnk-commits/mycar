@@ -1,0 +1,13 @@
+{
+  "name": "mycar-cloud-ui-qa",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Isolated browser regression tests for MYCAR on GitHub Actions",
+  "scripts": {
+    "test:ui": "playwright test",
+    "test:ui:report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1"
+  }
+}
