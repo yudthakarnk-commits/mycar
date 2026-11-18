@@ -1,0 +1,58 @@
+/* MYCAR v3.3.2 — Android PWA one-scroll-region viewport fix.
+   Only main content scrolls; app header and bottom navigation remain inside viewport.
+   Does not modify Auth, storage, cloud sync or vehicle records. */
+@media (max-width: 639px) {
+  html, body {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+  body {
+    display: block !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+  }
+  #mycar-app-shell:not([hidden]) {
+    position: fixed !important;
+    inset: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+  #mycar-app-shell > header {
+    flex: 0 0 auto !important;
+    position: relative;
+    z-index: 25;
+  }
+  #mycar-app-shell > #main-content {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 24px !important;
+    scroll-padding-bottom: 24px;
+  }
+  #mycar-app-shell > nav {
+    flex: 0 0 auto !important;
+    position: relative !important;
+    z-index: 30;
+    margin: 0 !important;
+    padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+  }
+}
