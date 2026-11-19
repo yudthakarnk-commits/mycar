@@ -25,7 +25,8 @@ jobs:
           node-version: '22'
       - name: Install test dependencies
         run: npm install --no-audit --no-fund
-      
+      - name: Validate backup preview
+        run: node --test tests/backup-preview.test.cjs
       - name: Run isolated UI tests
         run: npm run test:ui
         env:
