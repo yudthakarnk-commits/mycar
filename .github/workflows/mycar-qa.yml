@@ -2,7 +2,7 @@ name: MYCAR Cloud UI QA
 
 on:
   push:
-    branches: [develop]
+    branches: [develop 'feature/v3.4.4-backup-safety']
   pull_request:
     branches: [main]
 
