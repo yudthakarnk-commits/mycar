@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict');
+const test=require('node:test');
+const {validate,compare}=require('../backup-preview.js');
+const base=()=>({activeVehicleId:'v1',vehicles:[{id:'v1',name:'Car'}],fuel:[{id:'f1',vehicleId:'v1',date:'2026-11-19',cost:60}],maintenance:[],tax:[],trips:[],other:[]});
+test('valid full backup',()=>assert.equal(validate(base()).valid,true));
+test('reject month-range reports',()=>assert.equal(validate({type:'MYCAR_PERIOD_REPORT_NOT_FOR_RESTORE',records:base()}).valid,false));
+test('reject missing arrays',()=>{const x=base();delete x.other;assert.equal(validate(x).valid,false)});
+test('reject duplicate IDs',()=>{const x=base();x.fuel.push({...x.fuel[0]});assert.equal(validate(x).valid,false)});
+test('reject dangling vehicle IDs',()=>{const x=base();x.fuel[0].vehicleId='v2';assert.equal(validate(x).valid,false)});
+test('reject invalid costs',()=>{const x=base();x.fuel[0].cost=-1;assert.equal(validate(x).valid,false)});
+test('compare new/identical/changed',()=>{const x=base(),y=base();x.fuel[0].cost=80;x.fuel.push({id:'f2',vehicleId:'v1'});const r=compare(x,y);assert.deepEqual([r.comparisons.fuel.newItems,r.comparisons.fuel.changed,r.comparisons.fuel.identical],[1,1,0])});
+test('read only: input objects unchanged',()=>{const x=base(),y=base(),a=JSON.stringify(x),b=JSON.stringify(y);compare(x,y);assert.equal(JSON.stringify(x),a);assert.equal(JSON.stringify(y),b)});
