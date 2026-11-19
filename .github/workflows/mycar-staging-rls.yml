@@ -1,0 +1,37 @@
+name: MYCAR Staging RLS QA
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'tests/staging-rls.test.mjs'
+      - '.github/workflows/mycar-staging-rls.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  staging-rls:
+    # Never use staging credentials on PRs, forks or on main.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    name: Staging RLS isolation and upsert
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    environment: mycar-staging-qa
+    steps:
+      - name: Checkout develop
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate staging RLS using isolated QA records
+        run: node tests/staging-rls.test.mjs
+        env:
+          MYCAR_STAGING_URL: ${{ secrets.MYCAR_STAGING_URL }}
+          MYCAR_STAGING_PUBLISHABLE_KEY: ${{ secrets.MYCAR_STAGING_PUBLISHABLE_KEY }}
+          MYCAR_TEST_USER_A_EMAIL: ${{ secrets.MYCAR_TEST_USER_A_EMAIL }}
+          MYCAR_TEST_USER_A_PASSWORD: ${{ secrets.MYCAR_TEST_USER_A_PASSWORD }}
+          MYCAR_TEST_USER_B_EMAIL: ${{ secrets.MYCAR_TEST_USER_B_EMAIL }}
+          MYCAR_TEST_USER_B_PASSWORD: ${{ secrets.MYCAR_TEST_USER_B_PASSWORD }}
