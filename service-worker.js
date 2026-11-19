@@ -17,7 +17,7 @@ self.addEventListener('install',event=>{
 self.addEventListener('activate',event=>{
   // Do NOT remove unrelated apps' caches on github.io origin.
   event.waitUntil(caches.keys().then(keys=>Promise.all(keys
-    .filter(key=>key.startsWith('mycar-') && key!==CACHE)
+    .filter(key=>key.startsWith('mycar-shell-') && key!==CACHE)
     .map(key=>caches.delete(key)))).then(()=>self.clients.claim()));
 });
 self.addEventListener('message',event=>{
