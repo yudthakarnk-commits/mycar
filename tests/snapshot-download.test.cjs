@@ -1,0 +1,18 @@
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const M = require('../snapshot-download.js');
+const S = require('../pre-restore-snapshot.js');
+const {validate} = require('../backup-preview.js');
+const id = '123e4567-e89b-12d3-a456-426614174000';
+const other = '123e4567-e89b-12d3-a456-426614174001';
+const context = ()=>({userId:id,online:true,pendingCount:0});
+const data = ()=>({activeVehicleId:'v1',vehicles:[{id:'v1',name:'QA'}],fuel:[{id:'f1',vehicleId:'v1',cost:60}],maintenance:[],tax:[],trips:[],other:[]});
+test('prepare and verify serialization',async()=>{const r=await M.prepare(data(),context(),validate,S);assert.equal((await M.verifyText(r.json,id,validate,S)).valid,true)});
+test('input untouched',async()=>{const d=data(),s=JSON.stringify(d);await M.prepare(d,context(),validate,S);assert.equal(JSON.stringify(d),s)});
+test('changed cost rejected',async()=>{const r=await M.prepare(data(),context(),validate,S);const j=JSON.parse(r.json);j.data.fuel[0].cost=900;assert.equal((await M.verifyText(JSON.stringify(j),id,validate,S)).valid,false)});
+test('wrong user rejected',async()=>{const r=await M.prepare(data(),context(),validate,S);assert.equal((await M.verifyText(r.json,other,validate,S)).valid,false)});
+test('period report rejected',async()=>{assert.equal((await M.verifyText(JSON.stringify({type:'MYCAR_PERIOD_REPORT_NOT_FOR_RESTORE'}),id,validate,S)).valid,false)});
+test('malformed JSON rejected',async()=>{assert.equal((await M.verifyText('{',id,validate,S)).valid,false)});
+test('pending queue prevents snapshot',async()=>{const c=context();c.pendingCount=1;await assert.rejects(M.prepare(data(),c,validate,S),/Pending/)});
+test('offline prevents snapshot',async()=>{const c=context();c.online=false;await assert.rejects(M.prepare(data(),c,validate,S),/Online/)});
+test('missing library fails closed',async()=>{await assert.rejects(M.prepare(data(),context(),validate,null),/library/)});
