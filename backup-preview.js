@@ -107,6 +107,34 @@
       if (result.validation.counts) line(output, Object.entries(result.validation.counts).map(([k,v])=>`${k}: ${v}`).join(' | '));
       for (const issue of result.validation.errors) line(output,`ERROR — ${issue}`,'mycar-backup-preview__error');
       for (const issue of result.validation.warnings) line(output,`CHECK — ${issue}`,'mycar-backup-preview__warning');
+      if (result.validation.valid && current && root.MYCARRestoreDryRun) {
+  const dryRun = root.MYCARRestoreDryRun.plan(parsed, current);
+
+  if (dryRun.valid) {
+    line(output, 'RESTORE DRY RUN — PREVIEW ONLY');
+
+    for (const [name, x] of Object.entries(dryRun.changes)) {
+      line(
+        output,
+        `${name}: ${x.add} new | ${x.identical} identical | ` +
+        `${x.changed} changed | ${x.absentFromBackup} absent from backup`
+      );
+    }
+
+    line(
+      output,
+      'No data has been restored or modified. ' +
+      'Records absent from backup will NOT be deleted.',
+      'mycar-backup-preview__warning'
+    );
+  } else {
+    line(
+      output,
+      'Dry Run unavailable: validation failed.',
+      'mycar-backup-preview__error'
+    );
+  }
+}
       if (result.comparisons) {
         line(output,'Comparison against records on this device (same IDs can have changed values):');
         for (const [name,x] of Object.entries(result.comparisons))
