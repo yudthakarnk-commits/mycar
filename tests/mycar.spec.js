@@ -152,5 +152,5 @@ test('Settings modal stays within viewport and can scroll to backup controls', a
   });
   expect(result.bottom).toBeLessThanOrEqual(result.viewportHeight + 1);
   expect(result.scrollable).toBe(true);
-  await expect(page.getByText('Restore Backup (JSON)')).toHaveCount(1);
+  await expect(page.getByText('Verify Backup & Dry Run (JSON)')).toHaveCount(1);
 });
