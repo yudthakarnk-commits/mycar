@@ -61,48 +61,100 @@ test('full JSON export contains all categories and retains MYR numbers', async (
   expect(requests()).toBe(0);
 });
 
-test('full JSON restore recovers records once, with correct totals', async ({page})=>{
-  const requests=await openIsolatedApp(page);
-  const {data}=await exportJson(page);
-  await page.evaluate(()=>{dbData.fuel=[];dbData.other=[];updateDashboard();});
-  await expect(page.locator('#sum-total-cost')).toHaveText('RM60.00');
-  await page.evaluate(()=>openSettingsModal());
-  const dialogPromise=page.waitForEvent('dialog');
-  await page.locator('#settings-modal input[type="file"][accept=".json"]').setInputFiles({name:'qa-full.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
-  const confirmation=await dialogPromise;
-  expect(confirmation.type()).toBe('confirm');
-  await confirmation.accept();
-  await expect.poll(()=>page.evaluate(()=>dbData.fuel.length===1 && dbData.other.length===1)).toBe(true);
+
+test('full JSON backup shows read-only preview without changing records', async ({page}) => {
+  const requests = await openIsolatedApp(page);
+  const {data} = await exportJson(page);
+
+  const original = await page.evaluate(() => structuredClone(dbData));
+
+  await page.evaluate(() => openSettingsModal());
+
+  await page.locator('#settings-modal input[type="file"][accept=".json"]')
+    .setInputFiles({
+      name: 'qa-full.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(data))
+    });
+
+  const preview = page.locator('#mycar-backup-preview');
+
+  await expect(preview).toBeVisible();
+  await expect(preview.locator('.mycar-backup-preview__status'))
+    .toContainText('Valid structure');
+
+  await expect(preview).toContainText('Comparison against records');
+
+  expect(await page.evaluate(() => structuredClone(dbData)))
+    .toEqual(original);
+
   await expect(page.locator('#sum-total-cost')).toHaveText('RM167.00');
-  expect(await page.evaluate(()=>structuredClone(dbData))).toEqual(fixture);
+
   expect(requests()).toBe(0);
 });
 
-test('cancel Restore leaves all existing records untouched', async ({page})=>{
-  await openIsolatedApp(page);
-  const different=clone(fixture);different.fuel[0].cost=9999;
-  await page.evaluate(()=>openSettingsModal());
-  const dialogPromise=page.waitForEvent('dialog');
-  await page.locator('#settings-modal input[type="file"][accept=".json"]').setInputFiles({name:'qa-cancel.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(different))});
-  const confirmation=await dialogPromise;
-  expect(confirmation.type()).toBe('confirm');
-  await confirmation.dismiss();
-  await expect.poll(()=>page.evaluate(()=>dbData.fuel[0].cost)).toBe(100);
-  expect(await page.evaluate(()=>structuredClone(dbData))).toEqual(fixture);
+test('preview of changed backup leaves existing records untouched', async ({page}) => {
+  const requests = await openIsolatedApp(page);
+  const different = clone(fixture);
+  different.fuel[0].cost = 9999;
+
+  const original = await page.evaluate(() => structuredClone(dbData));
+
+  await page.evaluate(() => openSettingsModal());
+
+  await page.locator('#settings-modal input[type="file"][accept=".json"]')
+    .setInputFiles({
+      name: 'qa-changed.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(different))
+    });
+
+  const preview = page.locator('#mycar-backup-preview');
+
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText('Valid structure');
+  await expect(preview).toContainText('1 changed IDs');
+
+  expect(await page.evaluate(() => structuredClone(dbData)))
+    .toEqual(original);
+
+  await expect(page.locator('#sum-total-cost')).toHaveText('RM167.00');
+
+  expect(requests()).toBe(0);
 });
 
-test('invalid backups are rejected without altering current records', async ({page})=>{
-  await openIsolatedApp(page);
-  const malformed={vehicles:[{id:'qa-car',name:'Bad'}],fuel:[{id:'f1',vehicleId:'qa-car'}]}; // missing collections
-  expect(await page.evaluate(x=>isValidBackup(x),malformed)).toBe(false);
-  await page.evaluate(()=>openSettingsModal());
-  const dialogPromise=page.waitForEvent('dialog');
-  await page.locator('#settings-modal input[type="file"][accept=".json"]').setInputFiles({name:'invalid.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(malformed))});
-  const warning=await dialogPromise;
-  expect(warning.type()).toBe('alert');
-  expect(warning.message()).toContain('Invalid backup file format');
-  await warning.accept();
-  expect(await page.evaluate(()=>structuredClone(dbData))).toEqual(fixture);
+test('invalid backup preview rejects malformed files without changing records', async ({page}) => {
+  const requests = await openIsolatedApp(page);
+
+  const malformed = {
+    vehicles: [{id: 'qa-car', name: 'Bad'}],
+    fuel: [{id: 'f1', vehicleId: 'qa-car'}]
+    // Missing required collections
+  };
+
+  const original = await page.evaluate(() => structuredClone(dbData));
+
+  await page.evaluate(() => openSettingsModal());
+
+  await page.locator('#settings-modal input[type="file"][accept=".json"]')
+    .setInputFiles({
+      name: 'invalid.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(malformed))
+    });
+
+  const preview = page.locator('#mycar-backup-preview');
+
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText('Not safe to restore');
+  await expect(preview).toContainText('ERROR');
+
+  expect(await page.evaluate(() => structuredClone(dbData)))
+    .toEqual(original);
+
+  await expect(page.locator('#sum-total-cost')).toHaveText('RM167.00');
+
+  expect(requests()).toBe(0);
 });
 
 test('month-range report excludes out-of-range records and cannot be restored as backup', async ({page})=>{
