@@ -31,6 +31,8 @@ jobs:
         run: node --test tests/restore-dry-run.test.cjs
       - name: Validate pre-restore snapshot
         run: node --test tests/pre-restore-snapshot.test.cjs
+      - name: Validate snapshot download
+        run: node --test tests/snapshot-download.test.cjs
       - name: Run isolated UI tests
         run: npm run test:ui
         env:
