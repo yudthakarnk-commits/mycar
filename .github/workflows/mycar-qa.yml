@@ -2,7 +2,7 @@ name: MYCAR Cloud UI QA
 
 on:
   push:
-    branches: [develop, 'feature/v3.4.4-backup-safety']
+    branches: [develop, 'feature/v3.4.5-safe-restore']
   pull_request:
     branches: [main]
 
@@ -27,6 +27,8 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Validate backup preview
         run: node --test tests/backup-preview.test.cjs
+      - name: Validate restore dry run
+        run: node --test tests/restore-dry-run.test.cjs
       - name: Run isolated UI tests
         run: npm run test:ui
         env:
