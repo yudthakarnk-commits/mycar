@@ -2,7 +2,7 @@ name: MYCAR Cloud UI QA
 
 on:
   push:
-    branches: [develop, 'feature/v3.4.5-safe-restore']
+    branches: [develop, 'feature/v3.4.6-controlled-restore']
   pull_request:
     branches: [main]
 
@@ -29,6 +29,8 @@ jobs:
         run: node --test tests/backup-preview.test.cjs
       - name: Validate restore dry run
         run: node --test tests/restore-dry-run.test.cjs
+      - name: Validate pre-restore snapshot
+        run: node --test tests/pre-restore-snapshot.test.cjs
       - name: Run isolated UI tests
         run: npm run test:ui
         env:
