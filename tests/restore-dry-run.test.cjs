@@ -1,0 +1,13 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {plan,inspectShape}=require('../restore-dry-run.js');
+const base=()=>({activeVehicleId:'v1',vehicles:[{id:'v1',name:'Test'}],fuel:[{id:'f1',vehicleId:'v1',cost:60}],maintenance:[],tax:[],trips:[],other:[]});
+test('identical records',()=>assert.deepEqual(plan(base(),base()).changes.fuel,{inBackup:1,onDevice:1,add:0,identical:1,changed:0,absentFromBackup:0}));
+test('changed value',()=>{const a=base();a.fuel[0].cost=99;assert.equal(plan(a,base()).changes.fuel.changed,1)});
+test('new entry',()=>{const a=base();a.fuel.push({id:'f2',vehicleId:'v1',cost:10});assert.equal(plan(a,base()).changes.fuel.add,1)});
+test('missing from backup is counted without deleting',()=>{const a=base();a.fuel=[];assert.equal(plan(a,base()).changes.fuel.absentFromBackup,1)});
+test('duplicate ID rejected',()=>{const a=base();a.fuel.push({...a.fuel[0]});assert.equal(inspectShape(a).valid,false)});
+test('dangling vehicle ID rejected',()=>{const a=base();a.fuel[0].vehicleId='v2';assert.equal(inspectShape(a).valid,false)});
+test('period report rejected',()=>assert.equal(inspectShape({type:'MYCAR_PERIOD_REPORT_NOT_FOR_RESTORE'}).valid,false));
+test('invalid amount rejected',()=>{const a=base();a.fuel[0].cost=-10;assert.equal(inspectShape(a).valid,false)});
+test('no mutations to original data',()=>{const a=base(),b=base(),x=JSON.stringify(a),y=JSON.stringify(b);plan(a,b);assert.equal(JSON.stringify(a),x);assert.equal(JSON.stringify(b),y)});
