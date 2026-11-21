@@ -787,6 +787,34 @@
                             <input type="file" accept=".json" onchange="MYCARBackupPreview.inspect(event)" class="hidden">
                         </label>
                         <div id="mycar-backup-preview" class="mycar-backup-preview" hidden></div>
+                        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+  <p class="text-xs font-bold text-emerald-800">
+    Pre-Restore Snapshot — v3.4.6
+  </p>
+
+  <button type="button"
+    onclick="MYCARSnapshotDownload.download()"
+    class="w-full bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs">
+    Download Pre-Restore Snapshot
+  </button>
+
+  <label class="block w-full bg-white border border-emerald-200 text-emerald-800 font-bold py-2.5 rounded-xl text-xs text-center cursor-pointer">
+    Verify Snapshot (JSON)
+    <input type="file"
+      accept=".json,application/json"
+      onchange="MYCARSnapshotDownload.inspect(event)"
+      class="hidden">
+  </label>
+
+  <p id="mycar-snapshot-status"
+    role="status"
+    aria-live="polite"
+    class="text-xs text-slate-700"></p>
+
+  <p class="text-[10px] text-slate-500">
+    Local snapshot only. Verification does not restore data.
+  </p>
+</div>
                         <button onclick="clearAllData()" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-2.5 rounded-xl text-xs transition">
                             Clear All Data (Start Fresh)
                         </button>
@@ -830,6 +858,8 @@
     <script src="./sync-health.js?v=3.4.3" defer></script>
     <script src="./restore-dry-run.js?v=3.4.5" defer></script>
     <script src="./backup-preview.js?v=3.4.5" defer></script>
+    <script src="./pre-restore-snapshot.js?v=3.4.6" defer></script>
+    <script src="./snapshot-download.js?v=3.4.6" defer></script>
     <script src="./app.js?v=3.4.2" defer></script>
     <script src="./vehicle-photos.js?v=3.4.2" defer></script>
     <script src="./tng-import.js?v=3.4.2" defer></script>
