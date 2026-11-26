@@ -1,0 +1,50 @@
+name: Prepare self-hosted OCR assets
+on:
+  push:
+    branches: [feature/fuel-receipt-scanner]
+    paths: ['.github/workflows/prepare-ocr.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  vendor:
+    if: github.ref == 'refs/heads/feature/fuel-receipt-scanner'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download exact versions and vendor assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          npm pack --pack-destination "$tmp" tesseract.js@6.0.1 tesseract.js-core@6.0.0 @tesseract.js-data/eng@1.0.0
+          for p in js core eng; do mkdir -p "$tmp/$p"; done
+          tar -xzf "$tmp/tesseract.js-6.0.1.tgz" -C "$tmp/js"
+          tar -xzf "$tmp/tesseract.js-core-6.0.0.tgz" -C "$tmp/core"
+          tar -xzf "$tmp/tesseract.js-data-eng-1.0.0.tgz" -C "$tmp/eng"
+          mkdir -p vendor/ocr/{core,lang,licenses}
+          cp "$tmp/js/package/dist/"{tesseract.min.js,worker.min.js} vendor/ocr/
+          cp "$tmp/core/package/"*.wasm* vendor/ocr/core/
+          cp "$tmp/eng/package/4.0.0_best_int/eng.traineddata.gz" vendor/ocr/lang/
+          for p in js core eng; do
+            find "$tmp/$p/package" -maxdepth 1 -type f \( -iname 'license*' -o -iname 'notice*' -o -name 'package.json' \) -exec cp {} vendor/ocr/licenses/ \;
+            mkdir -p "vendor/ocr/licenses/$p"
+            find "$tmp/$p/package" -maxdepth 1 -type f \( -iname 'license*' -o -iname 'notice*' -o -name 'package.json' \) -exec cp {} "vendor/ocr/licenses/$p/" \;
+          done
+          rm -f vendor/ocr/licenses/package.json vendor/ocr/licenses/LICENSE vendor/ocr/licenses/LICENSE.md vendor/ocr/licenses/NOTICE
+          test -s vendor/ocr/core/tesseract-core-lstm.wasm.js
+          test -s vendor/ocr/core/tesseract-core-simd-lstm.wasm.js
+          gzip -t vendor/ocr/lang/eng.traineddata.gz
+          (cd vendor/ocr && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS && sha256sum -c SHA256SUMS)
+          node --check fuel-receipt-ui.js
+          node tests/fuel-receipt.test.cjs
+      - name: Commit vendored files only to feature branch
+        run: |
+          git config user.name 'mycar-ocr-build[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add vendor/ocr
+          git diff --cached --quiet || git commit -m 'Vendor pinned OCR runtime and English model'
+          git push origin HEAD:refs/heads/feature/fuel-receipt-scanner

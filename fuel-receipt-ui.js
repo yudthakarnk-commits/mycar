@@ -2,6 +2,7 @@
 'use strict';
 let generation=0, url=null, result=null, busy=false, loader=null;
 const el=id=>document.getElementById(id);
+const OCR_ROOT=new URL('./vendor/ocr/',document.baseURI).href;
 function reset(){
  generation++;result=null;
  if(url){URL.revokeObjectURL(url);url=null;}
@@ -31,7 +32,7 @@ function load(){
  if(window.Tesseract?.createWorker)return Promise.resolve(window.Tesseract);
  if(loader)return loader;
  loader=new Promise((resolve,reject)=>{
- const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
+ const script=document.createElement('script');script.src=OCR_ROOT+'tesseract.min.js';
  script.onload=()=>window.Tesseract?.createWorker?resolve(window.Tesseract):reject(new Error('OCR unavailable'));
  script.onerror=()=>reject(new Error('OCR download failed'));document.head.appendChild(script);
  }).catch(e=>{loader=null;throw e;});return loader;
@@ -44,7 +45,7 @@ async function scan(event,context){
  busy=true;let worker;
  try{
  status('Loading local OCR…');const lib=await load();if(token!==generation)return;
- worker=await lib.createWorker('eng',1,{workerPath:'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/worker.min.js',corePath:'https://cdn.jsdelivr.net/npm/tesseract.js-core@6.0.0',logger:m=>{if(token===generation&&m.status==='recognizing text')status('Reading receipt '+Math.round(m.progress*100)+'%');}});
+ worker=await lib.createWorker('eng',1,{workerPath:OCR_ROOT+'worker.min.js',corePath:OCR_ROOT+'core/',langPath:OCR_ROOT+'lang/',workerBlobURL:false,logger:m=>{if(token===generation&&m.status==='recognizing text')status('Reading receipt '+Math.round(m.progress*100)+'%');}});
  if(token!==generation)return;
  let input=file;try{input=await enhance(url);}catch(e){}if(token!==generation)return;
  const {data}=await worker.recognize(input);if(token!==generation)return;
