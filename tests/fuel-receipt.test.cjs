@@ -8,3 +8,9 @@ assert.ok(parse('33.870ltr@RM3.720/ltr\nTOTAL RM12.00').warnings.some(x=>x.inclu
 assert.equal(parse('31FEB2026').date,null);
 assert.equal(parse('unreadable').total,null);
 console.log('Receipt parser tests passed');
+
+const noisy=parse('SHELL SERVICE STATION,\nKM 271 KAWASAN REHAT SEREMBAN,\n(ARAH UTARA),\n20NOV2026 02:03PM\nVRN vocse991\nOdome ter 22578\nFuelSave 95(Pump 17) RM126 . 00\n33.8701 tr@RM3.720/1tr\nTOTAL RM126.00');
+assert.equal(noisy.odometer,22578);assert.equal(noisy.liters,33.87);assert.equal(noisy.price,3.72);assert.equal(noisy.total,126);assert.equal(noisy.plate,'vocse991');
+assert.equal(assess(noisy,{id:'a',plate:'VQG8991'},[]).mismatch,true);
+assert.ok(assess(r,{id:'a',plate:r.plate},[{id:'earlier',vehicleId:'a',date:'2026-11-19',odometer:23000}]).warnings.some(x=>x.includes('Odometer')));
+console.log('Noisy OCR and historical odometer tests passed');
