@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict');
+const {parse,assess}=require('../fuel-receipt.js');
+const r=parse('SHELL SERVICE STATION\nKM 271 SEREMBAN\n(ARAH UTARA)\n20NOV2026 02:03PM\nVRN VQG8991\nOdometer 22578\nFuelSave 95(Pump 17) RM126.00\n33.870ltr@RM3.720/ltr\nTOTAL RM126.00');
+assert.equal(r.date,'2026-11-20');assert.equal(r.odometer,22578);assert.equal(r.liters,33.87);assert.equal(r.price,3.72);assert.equal(r.total,126);assert.equal(r.fuelType,'RON95');assert.equal(r.plate,'VQG8991');assert.equal(r.station,'Shell R&R Seremban (Northbound)');assert.deepEqual(r.warnings,[]);
+assert.equal(assess(r,{id:'a',plate:'OTHER'},[]).mismatch,true);
+assert.ok(assess(r,{id:'a',plate:r.plate},[{id:'b',vehicleId:'a',date:r.date,odometer:r.odometer,cost:126}]).warnings.some(x=>x.includes('duplicate')));
+assert.ok(parse('33.870ltr@RM3.720/ltr\nTOTAL RM12.00').warnings.some(x=>x.includes('differs')));
+assert.equal(parse('31FEB2026').date,null);
+assert.equal(parse('unreadable').total,null);
+console.log('Receipt parser tests passed');
