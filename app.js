@@ -798,6 +798,7 @@
             const dateEl = document.getElementById('field-date');
             if (!modal) return;
 
+            window.MYCARReceiptUI?.reset();
             document.getElementById('entry-form').reset();
             document.getElementById('form-id').value='';
             document.getElementById('trip-start-odo').dataset.autoStart='';
@@ -855,6 +856,7 @@
         }
 
         function closeModal() {
+            window.MYCARReceiptUI?.reset();
             const modal = document.getElementById('app-modal');
             if (modal) modal.classList.add('hidden');
         }
@@ -895,23 +897,13 @@
         }
 
         function previewReceipt(event) {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            const status=document.getElementById('receipt-status');
-            const preview=document.getElementById('receipt-preview');
-            if (!file.type.startsWith('image/')) {
-                status.textContent='Choose an image file.';
-                status.classList.remove('hidden');
-                return;
-            }
-            const reader=new FileReader();
-            reader.onload=()=> {
-                preview.src=reader.result;
-                preview.classList.remove('hidden');
-                status.textContent='Photo preview only. Verify and enter actual values manually; photos are not stored.';
-                status.classList.remove('hidden');
+            const context=()=> {
+                if(document.getElementById('app-modal').classList.contains('hidden')||document.getElementById('form-type').value!=='fuel')return null;
+                const vehicle=getActiveVehicle(),id=document.getElementById('form-id').value;
+                return {vehicle,id,records:dbData.fuel,key:vehicle.id+'|'+id,refresh:estimateFuelForm};
             };
-            reader.readAsDataURL(file);
+            context.key=context()?.key;
+            if(context.key)window.MYCARReceiptUI.scan(event,context);
         }
         function editItem(collection,id) {
             const item=dbData[collection]?.find(x=>x.id===id);
