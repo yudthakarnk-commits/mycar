@@ -1,0 +1,28 @@
+name: Receipt QA
+on:
+  push:
+    branches: [feature/fuel-receipt-scanner]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  receipt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check pinned assets
+        run: cd vendor/ocr && sha256sum -c SHA256SUMS
+      - name: Syntax and regression
+        run: |
+          node --check app.js
+          node --check fuel-receipt-ui.js
+          node --check service-worker.js
+          node tests/fuel-receipt.test.cjs
+      - name: Browser smoke test with synthetic receipt
+        run: |
+          npm install --no-save --package-lock=false playwright@1.51.1
+          npx playwright install --with-deps chromium webkit
+          node tests/receipt-browser.cjs

@@ -64,6 +64,21 @@ async function scan(event,context){
   await recognize(input,'11');if(token!==generation)return;
   r=window.MYCARReceipt.merge(passes);
  }
+ if(input!==file&&['date','odometer','liters','price','total','plate'].some(k=>r[k]===null)){
+  // Overlapping bands retain labels; do not infer fields from crop position.
+  const regions=[[0,0.60],[0.35,1]];
+  for(const [top,bottom] of regions){
+   if(token!==generation)return;
+   const crop=document.createElement('canvas');
+   const y=Math.floor(input.height*top),height=Math.ceil(input.height*bottom)-y;
+   crop.width=input.width;crop.height=height;
+   crop.getContext('2d').drawImage(input,0,y,input.width,height,0,0,input.width,height);
+   status('Checking receipt sections…');
+   try{await recognize(crop,'6');}catch(e){if(token!==generation)return;}
+   crop.width=0;crop.height=0;
+  }
+  r=window.MYCARReceipt.merge(passes);
+ }
  const c=context();if(!c||c.key!==context.key){status('Form changed. Select receipt again.');return;}
  const check=window.MYCARReceipt.assess(r,c.vehicle,c.records,c.id);
  const fields=[['Date',r.date],['Odometer',r.odometer],['Litres',r.liters],['RM/litre',r.price],['Total RM',r.total],['Plate',r.plate],['Fuel',r.fuelType],['Station',r.station]];
