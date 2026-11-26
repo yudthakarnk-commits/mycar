@@ -53,5 +53,19 @@ function assess(r,vehicle,records,id){
  if(r.date&&r.odometer&&own.some(x=>(x.date<r.date&&Number(x.odometer)>r.odometer)||(x.date>r.date&&Number(x.odometer)<r.odometer)))warnings.push('Odometer conflicts with dated fuel history.');
  return {warnings,mismatch};
 }
-root.MYCARReceipt={parse,assess};if(typeof module!=='undefined')module.exports=root.MYCARReceipt;
+function merge(results){
+ const keys=['date','odometer','liters','price','total','plate','fuelType','station'];
+ const out={},warnings=[];
+ for(const k of keys){
+  const values=[...new Set(results.map(r=>r[k]).filter(v=>v!=null))];
+  out[k]=values.length===1?values[0]:null;
+  if(values.length>1||results.some(r=>r.warnings.some(w=>w.toLowerCase().startsWith('conflicting '+({liters:'litres',price:'unit price',fuelType:'fuel type'}[k]||k)+' ')))){out[k]=null;warnings.push('Conflicting '+k+' across OCR passes; enter manually.');}
+  else if(values.length===1&&results.filter(r=>r[k]===values[0]).length===1)warnings.push('Review '+k+': detected in one OCR pass only.');
+ }
+ for(const r of results)for(const w of r.warnings)if(w.startsWith('Review OCR formatting'))warnings.push(w);
+ if(keys.some(k=>out[k]===null))warnings.push('Missing or conflicting receipt fields; enter manually.');
+ if(out.liters!==null&&out.price!==null&&out.total!==null&&Math.abs(out.liters*out.price-out.total)>0.015){warnings.push('Volume × price differs from total; enter litres and total manually.');out.liters=null;out.total=null;}
+ out.warnings=[...new Set(warnings)];return out;
+}
+root.MYCARReceipt={parse,assess,merge};if(typeof module!=='undefined')module.exports=root.MYCARReceipt;
 })(typeof window!=='undefined'?window:globalThis);

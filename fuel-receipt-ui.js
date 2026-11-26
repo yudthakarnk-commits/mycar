@@ -48,13 +48,21 @@ async function scan(event,context){
  worker=await lib.createWorker('eng',1,{workerPath:OCR_ROOT+'worker.min.js',corePath:OCR_ROOT+'core/',langPath:OCR_ROOT+'lang/',workerBlobURL:false,logger:m=>{if(token===generation&&m.status==='recognizing text')status('Reading receipt '+Math.round(m.progress*100)+'%');}});
  if(token!==generation)return;
  let input=file;try{input=await enhance(url);}catch(e){}if(token!==generation)return;
- const {data}=await worker.recognize(input);if(token!==generation)return;
- let r=window.MYCARReceipt.parse(data.text);
- if(input!==file&&(r.warnings.length||!r.plate||normalizedPlate(r.plate)!==normalizedPlate(context()?.vehicle.plate))){
- const original=await worker.recognize(file);if(token!==generation)return;
- const alt=window.MYCARReceipt.parse(original.data.text);
- const score=x=>['date','odometer','liters','price','total','fuelType','station'].filter(k=>x[k]!=null).length-x.warnings.length*2;
- if(score(alt)>score(r))r=alt;
+ const passes=[];
+ async function recognize(source,mode){
+  if(token!==generation)return;
+  await worker.setParameters({tessedit_pageseg_mode:mode});
+  const {data}=await worker.recognize(source);
+  if(token===generation)passes.push(window.MYCARReceipt.parse(data.text));
+ }
+ await recognize(input,'6');if(token!==generation)return;
+ status('Cross-checking original receipt…');
+ await recognize(file,'3');if(token!==generation)return;
+ let r=window.MYCARReceipt.merge(passes);
+ if(input!==file&&['date','odometer','liters','price','total','plate'].some(k=>r[k]===null)){
+  status('Reading receipt with alternative layout…');
+  await recognize(input,'11');if(token!==generation)return;
+  r=window.MYCARReceipt.merge(passes);
  }
  const c=context();if(!c||c.key!==context.key){status('Form changed. Select receipt again.');return;}
  const check=window.MYCARReceipt.assess(r,c.vehicle,c.records,c.id);
@@ -75,7 +83,7 @@ function apply(){
  const check=window.MYCARReceipt.assess(result.needsPlate?{...r,plate:confirmed}:r,c.vehicle,c.records,c.id);
  if(!window.confirm('Apply recognized values to the form? Verify all fields before Save. '+check.warnings.join(' ')))return;
  const map={'field-date':r.date,'fuel-odometer':r.odometer,'fuel-liters':r.liters,'fuel-cost':r.total,'fuel-type-name':r.fuelType,'fuel-station':r.station};
- for(const [id,value] of Object.entries(map))if(value!==null&&value!==undefined)el(id).value=value;
+ for(const [id,value] of Object.entries(map)){if(value!==null&&value!==undefined)el(id).value=value;else if(['field-date','fuel-odometer','fuel-liters','fuel-cost','fuel-type-name'].includes(id))el(id).value='';}
  c.refresh();status('Values applied. Check all fields, then Save manually.');el('receipt-apply').disabled=true;result=null;
 }
 window.MYCARReceiptUI={reset,scan,apply,plateChanged};

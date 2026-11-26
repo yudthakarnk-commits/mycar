@@ -26,3 +26,13 @@ assert.equal(parse('Odometer 17,59').odometer,null);
 assert.equal(parse('39,800Ltr@RM4.570/ltr').liters,39.8);
 assert.equal(parse('33.870ltr@RM3.720/ltr\n34.870ltr@RM3.720/ltr').liters,null);
 console.log('V2 formatting, ambiguity and conflict tests passed');
+
+const {merge}=require('../fuel-receipt.js');
+assert.equal(merge([r,r]).total,126);
+assert.equal(merge([r,{...r,total:127}]).total,null);
+assert.equal(merge([r,{...r,plate:'OTHER'}]).plate,null);
+assert.equal(merge([r,{...r,liters:null}]).liters,33.87);
+assert.ok(merge([r,{...r,liters:null}]).warnings.some(w=>w.includes('one OCR pass')));
+assert.equal(merge([r,{...r,total:null,warnings:['Conflicting total values; enter manually.']}]).total,null);
+assert.equal(merge([{...r,total:100},{...r,total:100}]).liters,null);
+console.log('Multi-pass conflict tests passed');
