@@ -14,3 +14,15 @@ assert.equal(noisy.odometer,22578);assert.equal(noisy.liters,33.87);assert.equal
 assert.equal(assess(noisy,{id:'a',plate:'VQG8991'},[]).mismatch,true);
 assert.ok(assess(r,{id:'a',plate:r.plate},[{id:'earlier',vehicleId:'a',date:'2026-11-19',odometer:23000}]).warnings.some(x=>x.includes('Odometer')));
 console.log('Noisy OCR and historical odometer tests passed');
+
+const comma=parse('05SEP2026\nOdometer 17,590\n39, 800Ltr@RM4.570/1tr\nTOTAL RM181,89\nFuelSave 95\nSHELL SERVICE SIATLON');
+assert.equal(comma.liters,39.8);assert.equal(comma.price,4.57);assert.equal(comma.total,181.89);assert.equal(comma.odometer,17590);assert.ok(comma.warnings.some(x=>x.includes('formatting')));
+assert.equal(parse('OSSEP2026').date,null);
+assert.equal(parse('O60CT2026').date,null);
+assert.equal(parse('05SEP2026\n06SEP2026').date,null);
+assert.equal(parse('TOTAL RM134,03\nTOTAL RM169. 09').total,null);
+assert.equal(parse('TOTAL RM169. 09').total,169.09);
+assert.equal(parse('Odometer 17,59').odometer,null);
+assert.equal(parse('39,800Ltr@RM4.570/ltr').liters,39.8);
+assert.equal(parse('33.870ltr@RM3.720/ltr\n34.870ltr@RM3.720/ltr').liters,null);
+console.log('V2 formatting, ambiguity and conflict tests passed');
