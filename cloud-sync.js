@@ -1,7 +1,7 @@
 /* MYCAR per-user cloud synchronization (Supabase PostgREST, no secret keys).
  * A record is one row; deletions are durable tombstones. Other devices poll
  * changes every 15 seconds and on focus; pending offline edits upload on reconnect.
- * Simultaneous edits to the same record are last-write-wins.
+ * Conflicts are never automatically resolved by last-write-wins.
  */
 const MYCARCloud = (() => {
   const COLLECTIONS = ['vehicles','fuel','maintenance','tax','trips','other'];
@@ -9,6 +9,9 @@ const MYCARCloud = (() => {
   let active = false, userId = '', projectId = '', timer = null, busy = false;
   let pending = {}, queueKey = '', initializedKey = '', didInitialize = false;
   let bridge = null, generation = 0, lastSuccessful = null;
+  let serverRevision = null, knownRemote = null, currentRemote = null, conflictKey = null;
+  let knownRevision=null, restoreBarrierRevision=0;
+  let lastError = null, lastRpcCheck = null, lastRpcWrite = null, restoreMaintenance = false;
   const keyOf = (type,id) => type+'|'+id;
   const clone = value => JSON.parse(JSON.stringify(value));
   const isSafeRecord = (item) => !!item && typeof item.id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(item.id);
@@ -23,17 +26,59 @@ const MYCARCloud = (() => {
     const details=document.getElementById('mycar-sync-detail');
     if(details) details.textContent=message+(lastSuccessful ? ' · Last sync '+lastSuccessful.toLocaleString() : '');
   }
+  // Never interpret unreadable or malformed legacy pending edits as an empty queue.
+  // A failed read must block syncing without writing to the original localStorage key.
   function readQueue() {
-    try {
-      const value=JSON.parse(localStorage.getItem(queueKey)||'{}');
-      if(value && typeof value==='object' && !Array.isArray(value)) return value;
-    } catch(error) { console.warn('Cannot parse sync queue',error); }
-    return {};
+    const raw=localStorage.getItem(queueKey);
+    if(raw===null)return {};
+    let value;
+    try {value=JSON.parse(raw);} catch(_) {throw new Error('Stored offline queue is unreadable');}
+    if(!value || typeof value!=='object' || Array.isArray(value))
+      throw new Error('Stored offline queue has an invalid structure');
+    for(const [key,op] of Object.entries(value)){
+      if(!op || typeof op!=='object' || Array.isArray(op) ||
+         !COLLECTIONS.includes(op.collection) ||
+         !isSafeRecord({id:op.record_id}) ||
+         key!==keyOf(op.collection,op.record_id) ||
+         typeof op.deleted!=='boolean' ||
+         (!op.deleted && (!op.payload || typeof op.payload!=='object' ||
+                          Array.isArray(op.payload) || op.payload.id!==op.record_id)))
+        throw new Error('Stored offline queue contains an invalid entry');
+    }
+    return value;
+  }
+  function blockUnsafeQueue(reason) {
+    const existing=document.getElementById('mycar-queue-safety-blocker');
+    if(existing)existing.remove();
+    const guard=document.createElement('div');
+    guard.id='mycar-queue-safety-blocker';
+    Object.assign(guard.style,{position:'fixed',inset:'0',zIndex:'2147483647',display:'flex',
+      alignItems:'center',justifyContent:'center',padding:'24px',background:'#071527ed',color:'#fff'});
+    const message=document.createElement('div');
+    Object.assign(message.style,{maxWidth:'460px',background:'#182f47',borderRadius:'12px',
+      padding:'24px',fontFamily:'system-ui,sans-serif',lineHeight:'1.5'});
+    message.textContent='MYCAR paused for offline-data safety: '+reason+
+      '. Do not clear browser storage, sign out or reinstall. Contact support for manual recovery.';
+    guard.appendChild(message);
+    document.body.appendChild(guard);
+    notify('Sync paused: offline queue needs recovery','error');
   }
   function saveQueue() { localStorage.setItem(queueKey,JSON.stringify(pending)); }
+  const baselineKey=()=>queueKey+':baseline_v3';
+  const baselineRevisionKey=()=>queueKey+':baseline_revision_v3';
+  function asMap(rows) {
+    const out={};
+    for(const row of rows)out[keyOf(row.collection,row.record_id)]={payload:row.deleted?{}:row.payload,deleted:!!row.deleted};
+    return out;
+  }
+  const same=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
   function queueEntry(collection, id, payload, deleted) {
     if(!COLLECTIONS.includes(collection)||!isSafeRecord({id})) return;
-    pending[keyOf(collection,id)]={collection,record_id:id,payload:deleted?{}:clone(payload),deleted:!!deleted};
+    const key=keyOf(collection,id),old=pending[key];
+    pending[key]={collection,record_id:id,payload:deleted?{}:clone(payload),deleted:!!deleted,
+      baseKnown:old ? old.baseKnown===true : knownRemote!==null,
+      base:old ? old.base : (knownRemote===null?null:clone(knownRemote[key]??null)),
+      baseRevision:old?.baseRevision??knownRevision??serverRevision};
   }
   // Called by app.js after writing its local cache.
   function onLocalChange(before, after) {
@@ -76,6 +121,28 @@ const MYCARCloud = (() => {
     }
     return data;
   }
+  async function rpc(name, payload) {
+    try {
+      const data=await request(AuthManager.config.url+'/rest/v1/rpc/'+name,{method:'POST',body:payload});
+      if(name==='mycar_get_sync_state') lastRpcCheck={ok:true,at:new Date().toISOString()};
+      if(name==='mycar_apply_changes') lastRpcWrite={ok:true,at:new Date().toISOString()};
+      return data;
+    } catch(error) {
+      const code=String(error?.message||error);
+      if(name==='mycar_get_sync_state') lastRpcCheck={ok:false,error:code,at:new Date().toISOString()};
+      if(name==='mycar_apply_changes') lastRpcWrite={ok:false,error:code,at:new Date().toISOString()};
+      throw error;
+    }
+  }
+  function flightKey() { return queueKey+':flight_v2'; }
+  function readFlight() {
+    try { return JSON.parse(localStorage.getItem(flightKey())||'null'); }
+    catch { throw new Error('Stored sync flight is corrupted. Manual recovery required.'); }
+  }
+  function saveFlight(flight) {
+    if (flight) localStorage.setItem(flightKey(),JSON.stringify(flight));
+    else localStorage.removeItem(flightKey());
+  }
   async function fetchRows() {
     const rows=[];const perPage=500;
     for(let offset=0;offset<100000;offset+=perPage) {
@@ -109,39 +176,161 @@ const MYCARCloud = (() => {
     return merged;
   }
   function currentPendingCount(){return Object.keys(pending).length;}
+  function conflictFor(remote) {
+    for(const [key,op] of Object.entries(pending)){
+      const base=Number(op.baseRevision);
+      const crossedRestoreBarrier=restoreBarrierRevision>0 &&
+        (!Number.isSafeInteger(base) || base<restoreBarrierRevision);
+      if(op.baseKnown!==true || crossedRestoreBarrier || !same(op.base,remote[key]??null))
+        return {key,op,reason:crossedRestoreBarrier?'Old offline change predates a server Restore.':null};
+    }
+    return null;
+  }
+  function showConflict(c) {
+    conflictKey=c.key;
+    let div=document.getElementById('mycar-conflict-dialog');
+    if(!div){
+      div=document.createElement('div');div.id='mycar-conflict-dialog';
+      Object.assign(div.style,{position:'fixed',inset:'0',zIndex:'2147483647',background:'#071527da',display:'flex',alignItems:'center',justifyContent:'center',padding:'16px'});
+      const box=document.createElement('div');
+      Object.assign(box.style,{background:'white',color:'#111827',maxWidth:'460px',width:'100%',borderRadius:'14px',padding:'20px',fontFamily:'system-ui,sans-serif'});
+      box.innerHTML='<h2 style="font-size:20px;font-weight:700">Sync conflict</h2><p id="mycar-conflict-text"></p><p style="font-size:12px">Your unsent change is retained until you choose.</p><button type="button" id="mycar-use-server" style="padding:10px;background:#ddd;margin:8px">Keep server</button><button type="button" id="mycar-use-local" style="padding:10px;background:#047857;color:white;margin:8px">Use my change</button>';
+      div.appendChild(box);document.body.appendChild(div);
+      box.querySelector('#mycar-use-server').onclick=()=>resolveConflict(false);
+      box.querySelector('#mycar-use-local').onclick=()=>resolveConflict(true);
+    }
+    div.style.display='flex';
+    div.querySelector('#mycar-conflict-text').textContent=c.op.collection+' / '+c.op.record_id+
+      (c.reason?' — '+c.reason:c.op.baseKnown?' changed on the server.':' has unknown original version (previous offline queue).');
+    notify('Conflict · choose a version','error');
+  }
+  function resolveConflict(useLocal){
+    if(!conflictKey)return;
+    const key=conflictKey,op=pending[key];
+    if(op){
+      if(useLocal){op.baseKnown=true;op.base=clone(currentRemote?.[key]??null);op.baseRevision=serverRevision;}
+      else delete pending[key];
+      saveQueue();
+    }
+    saveFlight(null);conflictKey=null;
+    const d=document.getElementById('mycar-conflict-dialog');if(d)d.style.display='none';
+    schedule(0);
+  }
   function addAllLocalToQueue(local) {
     for(const collection of COLLECTIONS)
       for(const record of local[collection]||[]) if(isSafeRecord(record)) queueEntry(collection,record.id,record,false);
     saveQueue();
   }
   async function flushQueue(expectedGeneration) {
-    const queued=Object.entries(pending);
-    for(let i=0;i<queued.length;i+=50) {
-      if(!active || generation!==expectedGeneration) return;
-      const chunk=queued.slice(i,i+50);
-      const payload=chunk.map(([,op])=>({user_id:userId,collection:op.collection,record_id:op.record_id,payload:op.payload,deleted:op.deleted}));
-      const qs=new URLSearchParams({on_conflict:'user_id,collection,record_id'});
-      await request(baseUrl()+'?'+qs.toString(),{method:'POST',body:payload,prefer:'resolution=merge-duplicates,return=minimal'});
-      if(!active||generation!==expectedGeneration) return;
-      // Preserve any edits made while the batch request was in flight.
-      for(const [key,sent] of chunk) if(JSON.stringify(pending[key])===JSON.stringify(sent)) delete pending[key];
-      saveQueue();
+    if (serverRevision === null) throw new Error('Account revision unavailable');
+    let flight=readFlight();
+    // Check a preexisting request before any conflict decision. It may already be committed.
+    if(flight){
+      const status=await rpc('mycar_get_sync_state',{p_request_id:flight.requestId});
+      if(status?.request?.operation==='apply'){
+        serverRevision=Number(status.request.revision);
+        for(const [key,sent] of flight.entries){
+          if(pending[key] && same(pending[key].payload,sent.payload) && pending[key].deleted===sent.deleted)delete pending[key];
+        }
+        saveQueue();saveFlight(null);
+        return;
+      }
+      // Never replay an unconfirmed old request without preserving its original revision.
     }
+    const collision=conflictFor(currentRemote||{});
+    if(collision){showConflict(collision);return;}
+    for (let attempt=0;attempt<100;attempt++) {
+      if (!active||generation!==expectedGeneration) return;
+      if (!flight) {
+        const chunk=Object.entries(pending).slice(0,50);
+        if (!chunk.length) return;
+        flight={
+          requestId:crypto.randomUUID(),
+          expectedRevision:serverRevision,
+          entries:chunk,
+          operations:chunk.map(([,op])=>({
+            collection:op.collection,record_id:op.record_id,
+            payload:op.payload,deleted:op.deleted
+          }))
+        };
+        saveFlight(flight);
+      }
+      let result;
+      try {
+        result=await rpc('mycar_apply_changes',{
+          p_expected_revision:flight.expectedRevision,
+          p_request_id:flight.requestId,
+          p_operations:flight.operations
+        });
+      } catch(error) {
+        let status=null;
+        try { status=await rpc('mycar_get_sync_state',{p_request_id:flight.requestId}); }
+        catch (_) { /* Keep flight for retry. */ }
+        if(status?.request?.operation==='apply'){
+          result=status.request;
+        }
+        else {
+          if(String(error.message||'').includes('STALE_REVISION')){
+            // The server rejected this revision; retain pending edits but release the stale flight.
+            saveFlight(null);
+          }
+          throw error;
+        }
+      }
+      if (!active||generation!==expectedGeneration) return;
+      serverRevision=Number(result.revision);
+      // Acknowledged writes become the new server baseline for subsequent local edits.
+      if(currentRemote){
+        for(const [,sent] of flight.entries){
+          const k=keyOf(sent.collection,sent.record_id);
+          currentRemote[k]={payload:sent.deleted?{}:clone(sent.payload),deleted:!!sent.deleted};
+        }
+      }
+      for (const [key,sent] of flight.entries) {
+        if(JSON.stringify(pending[key])===JSON.stringify(sent)) delete pending[key];
+      }
+      saveQueue();
+      saveFlight(null);
+      flight=null;
+    }
+    throw new Error('Sync exceeds safe batch limit; remaining edits retained');
   }
   async function syncNow() {
-    if(!active || busy || !bridge || !AuthManager.currentUser || AuthManager.currentUser.id!==userId) return;
+    if(!active || busy || restoreMaintenance || !bridge || !AuthManager.currentUser || AuthManager.currentUser.id!==userId) return;
     if(typeof navigator.onLine==='boolean' && !navigator.onLine) {notify('Offline · changes saved locally','offline');return;}
     const expectedGeneration=generation;
     busy=true;
+    lastError=null;
     notify(currentPendingCount()?'Uploading changes…':'Checking cloud…','working');
     try {
+      const beforeState=await rpc('mycar_get_sync_state',{p_request_id:null});
       const remote=await fetchRows();
+      const afterState=await rpc('mycar_get_sync_state',{p_request_id:null});
+      if(Number(beforeState.revision)!==Number(afterState.revision))
+        throw new Error('Cloud changed during download; retry sync');
+      serverRevision=Number(afterState.revision);
+      restoreBarrierRevision=Number(afterState.restore_barrier_revision||0);
+      currentRemote=asMap(remote);
       if(!active || generation!==expectedGeneration) return;
       const local=bridge.getData();
-      if(!didInitialize && remote.length===0 && !currentPendingCount()) addAllLocalToQueue(local);
+      if(!didInitialize && remote.length===0 && !currentPendingCount()){
+        // Only a fresh, untouched default vehicle may bootstrap from a verified empty server.
+        // Existing local caches and legacy queues must retain explicit conflict protection.
+        if(bridge.isFreshDefault?.(local) === true && serverRevision===0 && !readFlight()){
+          knownRemote={}; knownRevision=serverRevision;
+        }
+        addAllLocalToQueue(local);
+      }
       const merged=stateFromRows(remote,local,pending);
       bridge.applyData(merged);
       if(currentPendingCount()) await flushQueue(expectedGeneration);
+      if(conflictKey) return; // Do not report successful sync while waiting for a decision.
+      if(!currentPendingCount()){
+        knownRemote=clone(currentRemote);
+        localStorage.setItem(baselineKey(),JSON.stringify(knownRemote));
+        knownRevision=serverRevision;
+        localStorage.setItem(baselineRevisionKey(),String(knownRevision));
+      }
       if(!active || generation!==expectedGeneration) return;
       localStorage.setItem(initializedKey,'true');
       didInitialize=true;
@@ -149,6 +338,7 @@ const MYCARCloud = (() => {
       notify(currentPendingCount()?`${currentPendingCount()} edits pending`:'Synced · '+lastSuccessful.toLocaleTimeString(),'success');
     } catch(error) {
       if(active && generation===expectedGeneration) {
+        lastError=String(error.message||'Unknown sync error');
         notify('Sync error · '+(error.message||'Try again'),'error');
         console.error('MYCAR cloud synchronization failed',error);
       }
@@ -168,7 +358,17 @@ const MYCARCloud = (() => {
     bridge=callbacks;
     queueKey=`mycar_sync_pending_v1:${projectId}:${userId}`;
     initializedKey=`mycar_sync_initialized_v1:${projectId}:${userId}`;
-    pending=readQueue();
+    try {pending=readQueue();}
+    catch(error) {
+      pending={};
+      blockUnsafeQueue(String(error.message||error));
+      return;
+    }
+    try{const old=JSON.parse(localStorage.getItem(baselineKey())||'null');knownRemote=old&&typeof old==='object'&&!Array.isArray(old)?old:null;}
+    catch(_){knownRemote=null;}
+    const rev=localStorage.getItem(baselineRevisionKey());
+    knownRevision=rev!==null && Number.isSafeInteger(Number(rev))?Number(rev):null;
+    currentRemote=null;conflictKey=null;restoreBarrierRevision=0;
     didInitialize=localStorage.getItem(initializedKey)==='true';
     active=true;
     generation++;
@@ -182,12 +382,56 @@ const MYCARCloud = (() => {
     timer=null;
     bridge=null;
     userId='';projectId='';queueKey='';initializedKey='';pending={};didInitialize=false;
-    lastSuccessful=null;
+    lastSuccessful=null;lastError=null;lastRpcCheck=null;lastRpcWrite=null;
+    serverRevision=null;knownRemote=null;knownRevision=null;currentRemote=null;conflictKey=null;restoreBarrierRevision=0;restoreMaintenance=false;
+    const d=document.getElementById('mycar-conflict-dialog');if(d)d.remove();
+    const guard=document.getElementById('mycar-queue-safety-blocker');if(guard)guard.remove();
     busy=false;
   }
   window.addEventListener('online',()=>{if(active)schedule(0);});
   window.addEventListener('offline',()=>{if(active)notify('Offline · changes saved locally','offline');});
   window.addEventListener('focus',()=>{if(active)schedule(0);});
   document.addEventListener('visibilitychange',()=>{if(active && !document.hidden)schedule(0);});
-  return {start,stop,syncNow,onLocalChange,get pendingCount(){return currentPendingCount();}};
+  function diagnostics(){
+    return {
+      clientVersion:'3.5.0-rc.2-production.1',
+      active,online:navigator.onLine,busy,restoreMaintenance,
+      pendingCount:currentPendingCount(),
+      unknownBaseCount:Object.values(pending).filter(op=>op.baseKnown!==true).length,
+      serverRevision,restoreBarrierRevision,baselineKnown:knownRemote!==null,baselineRevision:knownRevision,
+      conflictWaiting:!!conflictKey, storedFlight:!!readFlight(),
+      lastRpcCheck,lastRpcWrite,lastError,
+      lastSuccessful:lastSuccessful?.toISOString()||null
+    };
+  }
+  async function exclusiveRestore(action, options={}) {
+    if(!active || restoreMaintenance || busy || !bridge || !AuthManager.currentUser || AuthManager.currentUser.id!==userId)
+      throw new Error('Sync is busy or this account is not ready. Wait until Synced and retry.');
+    if(navigator.onLine===false)throw new Error('Restore requires an online connection.');
+    if(currentPendingCount()!==0 || readFlight() || conflictKey)
+      throw new Error('Pending edits or unresolved sync are present. Resolve them before Restore; nothing was changed.');
+    if(typeof action!=='function')throw new Error('Invalid restore operation');
+    restoreMaintenance=true;
+    if(timer)clearTimeout(timer);
+    timer=null;
+    try{
+      const value=await action();
+      // Restore/reverse commit changes cloud state outside the ordinary sync flight.
+      // Clear only the cached baseline (not an offline queue) and refresh from server.
+      if(options.mutates!==false){
+        serverRevision=null;currentRemote=null;knownRemote=null;
+        localStorage.removeItem(baselineKey());
+        localStorage.removeItem(baselineRevisionKey());
+        knownRevision=null;
+        localStorage.setItem(initializedKey,'true');
+        didInitialize=true;
+      }
+      return value;
+    }finally{
+      restoreMaintenance=false;
+      if(active)schedule(0);
+    }
+  }
+  return {start,stop,syncNow,onLocalChange,diagnostics,exclusiveRestore,
+    get pendingCount(){return currentPendingCount();}};
 })();

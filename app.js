@@ -231,7 +231,7 @@
             navigator.serviceWorker.addEventListener('controllerchange',()=>{
                 if(changedController)return;
                 changedController=true;
-                const versionKey='mycar-sw-loaded-v3.3.1';
+                const versionKey='mycar-sw-loaded-3.5.0-rc.2-production.1';
                 const editorOpen=['app-modal','vehicle-modal','tng-import-modal'].some(id=>{
                     const element=document.getElementById(id);
                     return !!element && !element.classList.contains('hidden') && !element.hidden;
@@ -264,7 +264,7 @@
             } catch(error) {console.warn('Update check failed',error);}
             // Changing the query string bypasses the old cache-first v3 worker.
             const url=new URL(window.location.href);
-            url.searchParams.set('v','3.1.0');
+            url.searchParams.set('v','3.5.0-rc.1');
             window.location.assign(url.href);
         }
 
@@ -1168,38 +1168,9 @@
         }
 
         function importJSON(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                try {
-                    const parsed = JSON.parse(e.target.result);
-                    if (isValidBackup(parsed)) {
-                        if (!confirm('Replace all current records with this backup? Export a backup first if needed.')) return;
-                        dbData = parsed;
-                        saveData();
-                        updateVehicleSelector();
-                        refreshActiveView();
-                        closeSettingsModal();
-                        showToast("Backup restored successfully");
-                    } else {
-                        alert("Invalid backup file format.");
-                    }
-                } catch (err) {
-                    alert("Failed to parse JSON backup file.");
-                }
-            };
-            reader.readAsText(file);
-        }
-
-        function clearAllData() {
-            if (!confirm("Are you sure you want to reset and clear all data?")) return;
-            dbData = newEmptyData();
-            saveData();
-            updateVehicleSelector();
-            refreshActiveView();
-            closeSettingsModal();
-            showToast("App data reset");
+            // Direct local replacement is unsafe with revision-aware cloud sync.
+            if (event?.target) event.target.value='';
+            alert('Direct JSON replacement is disabled. Use Verify Backup & Dry Run, then the controlled RPC Restore workflow after backend verification.');
         }
 
         function initializeMYCARAfterLogin(user) {
@@ -1218,6 +1189,8 @@
             document.getElementById('auth-screen').hidden = true;
             MYCARCloud.start(user,{
                 getData:()=>JSON.parse(JSON.stringify(dbData)),
+                isFreshDefault:(local)=>localStorage.getItem(STORAGE_KEY)===null &&
+                    JSON.stringify(local)===JSON.stringify(newEmptyData()),
                 applyData:(updated)=>{
                     // Cloud updates must not be queued again as local edits.
                     if(!isValidBackup(updated)) {
@@ -1236,6 +1209,7 @@
                     refreshActiveView();
                 }
             });
+            window.MYCARRestore?.refreshReverseButton?.();
         }
 
         function lockMYCARAfterLogout() {
