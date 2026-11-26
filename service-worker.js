@@ -1,45 +1,20 @@
-/* MYCAR 3.2 - network-first shell updates, offline fallback, scoped caching. */
-const CACHE='mycar-shell-cloud-v15-scroll-expenses-3-4-2';
-const VERSION='3.4.2';
-const ASSETS=[
-  './','./index.html','./app.js?v=3.4.2','./auth.js?v=3.4.2',
-  './auth-config.js','./cloud-sync.js?v=3.4.2',
-  './assets/app.css?v=3.4.2','./assets/car-photos.css?v=3.4.2',
-  './assets/tng-import.css?v=3.4.2','./assets/auth.css?v=3.4.2',
-  './tng-import.js?v=3.4.2','./vehicle-photos.js?v=3.4.2',
-  './assets/toyota-corolla-cross-3q.webp', './assets/mobile-viewport-fix.css?v=3.4.2',
-  './manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'
-];
+/* MYCAR scoped PWA cache. Do not delete unrelated origin caches. */
+const CACHE_PREFIX='mycar-rc:'+self.registration.scope+':';
+const CACHE=CACHE_PREFIX+'3.5.0-rc.2-production.1';
+const SHELL=['./','./index.html','./auth-config.js?v=3.5.0-rc.2-production.1','./auth.js?v=3.5.0-rc.2-production.1','./cloud-sync.js?v=3.5.0-rc.2-production.1','./app.js?v=3.5.0-rc.2-production.1','./sync-health.js?v=3.5.0-rc.2-production.1','./restore-dry-run.js?v=3.5.0-rc.2-production.1','./backup-preview.js?v=3.5.0-rc.2-production.1','./rpc-restore.js?v=3.5.0-rc.2-production.1','./tng-import.js?v=3.5.0-rc.2-production.1','./vehicle-photos.js?v=3.5.0-rc.2-production.1','./manifest.webmanifest','./assets/auth.css?v=3.5.0-rc.2-production.1','./assets/app.css?v=3.5.0-rc.2-production.1','./assets/car-photos.css?v=3.5.0-rc.2-production.1','./assets/tng-import.css?v=3.5.0-rc.2-production.1','./assets/mobile-viewport-fix.css?v=3.5.0-rc.2-production.1','./assets/sync-health.css?v=3.5.0-rc.2-production.1','./assets/backup-preview.css?v=3.5.0-rc.2-production.1'];
+SHELL.push('./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png','./assets/toyota-corolla-cross-3q.webp');
 const SCOPE=new URL(self.registration.scope).pathname;
-self.addEventListener('install',event=>{
-  event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
-});
-self.addEventListener('activate',event=>{
-  // Do NOT remove unrelated apps' caches on github.io origin.
-  event.waitUntil(caches.keys().then(keys=>Promise.all(keys
-    .filter(key=>key.startsWith('mycar-shell-') && key!==CACHE)
-    .map(key=>caches.delete(key)))).then(()=>self.clients.claim()));
-});
-self.addEventListener('message',event=>{
-  if(event.data?.type==='MYCAR_SKIP_WAITING')self.skipWaiting();
-});
+self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting())));
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith(CACHE_PREFIX)&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
+self.addEventListener('message',event=>{if(event.data?.type==='MYCAR_SKIP_WAITING')self.skipWaiting()});
 self.addEventListener('fetch',event=>{
-  const req=event.request;
-  if(req.method!=='GET')return;
-  const url=new URL(req.url);
-  if(url.origin!==self.location.origin || !url.pathname.startsWith(SCOPE))return;
-  event.respondWith((async()=>{
-    const cache=await caches.open(CACHE);
-    try {
-      // Bypass browser HTTP cache on online visits; new deployments become visible.
-      const response=await fetch(req,{cache:'no-store'});
-      if(response.ok && response.type==='basic') await cache.put(req,response.clone());
-      return response;
-    }catch(error){
-      const saved=await cache.match(req,{ignoreSearch:true});
-      if(saved)return saved;
-      if(req.mode==='navigate')return (await cache.match('./index.html')) || Response.error();
-      return Response.error();
-    }
-  })());
+ const req=event.request;
+ if(req.method!=='GET')return;
+ const u=new URL(req.url);
+ if(u.origin!==self.location.origin||!u.pathname.startsWith(SCOPE))return;
+ event.respondWith((async()=>{
+ const cache=await caches.open(CACHE);
+ try{const r=await fetch(req,{cache:'no-store'});if(r.ok&&r.type==='basic')await cache.put(req,r.clone());return r;}
+ catch(e){return (await cache.match(req,{ignoreSearch:true})) || (req.mode==='navigate'?await cache.match('./index.html'):Response.error()) || Response.error();}
+ })());
 });

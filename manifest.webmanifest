@@ -2,7 +2,7 @@
   "id": "./",
   "name": "MYCAR — Vehicle Expense & Log Tracker",
   "short_name": "MYCAR",
-  "description": "Vehicle expenses, fuel efficiency, service, insurance, trips and reminders. Local-first and offline-ready.",
+  "description": "Vehicle expenses, fuel, service and trips; offline-ready.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
