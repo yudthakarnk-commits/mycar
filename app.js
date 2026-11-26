@@ -952,7 +952,7 @@
                 const fuelType = document.getElementById('fuel-type-name').value;
                 const station = document.getElementById('fuel-station').value;
 
-                if (!(odo > 0 && liters > 0 && cost >= 0)) { alert('Enter an odometer, positive litres, and a valid cost.'); return; }
+                if (!window.MYCARReceipt.validateFuel({date,odometer:document.getElementById('fuel-odometer').value,liters:document.getElementById('fuel-liters').value,cost:document.getElementById('fuel-cost').value,fuelType})) { alert('Enter a valid date, odometer, positive litres, explicit cost and fuel type.'); return false; }
                 upsertRecord('fuel', { id, vehicleId: activeVeh.id, date, odometer: odo, liters, cost, fuelType, station, notes: station });
                 if (odo > activeVeh.currentOdometer) {
                     activeVeh.currentOdometer = odo;

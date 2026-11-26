@@ -36,3 +36,10 @@ assert.ok(merge([r,{...r,liters:null}]).warnings.some(w=>w.includes('one OCR pas
 assert.equal(merge([r,{...r,total:null,warnings:['Conflicting total values; enter manually.']}]).total,null);
 assert.equal(merge([{...r,total:100},{...r,total:100}]).liters,null);
 console.log('Multi-pass conflict tests passed');
+
+const {validateFuel}=require('../fuel-receipt.js');
+const validFuel={date:'2026-11-20',odometer:'22578',liters:'33.870',cost:'126.00',fuelType:'RON95'};
+assert.equal(validateFuel(validFuel),true);
+assert.equal(validateFuel({...validFuel,cost:'0'}),true);
+for(const [k,v] of [['cost',''],['cost',' '],['cost','NaN'],['cost','Infinity'],['cost','-1'],['date',''],['date','2026-02-31'],['liters',''],['liters','0'],['odometer',''],['fuelType',''],['fuelType','unknown']])assert.equal(validateFuel({...validFuel,[k]:v}),false,k+':'+v);
+console.log('Fuel save validation passed');

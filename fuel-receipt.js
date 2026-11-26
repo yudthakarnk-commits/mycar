@@ -67,5 +67,12 @@ function merge(results){
  if(out.liters!==null&&out.price!==null&&out.total!==null&&Math.abs(out.liters*out.price-out.total)>0.015){warnings.push('Volume × price differs from total; enter litres and total manually.');out.liters=null;out.total=null;}
  out.warnings=[...new Set(warnings)];return out;
 }
-root.MYCARReceipt={parse,assess,merge};if(typeof module!=='undefined')module.exports=root.MYCARReceipt;
+function validateFuel(f){
+ const present=v=>typeof v==='string'&&v.trim()!=='';
+ const valid=(v,min,strict)=>present(v)&&Number.isFinite(Number(v))&&(strict?Number(v)>min:Number(v)>=min);
+ const m=String(f.date).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+ const dateOK=!!m&&+m[1]>=1&&+m[2]>=1&&+m[2]<=12&&+m[3]>=1&&+m[3]<=new Date(Date.UTC(+m[1],+m[2],0)).getUTCDate();
+ return dateOK&&valid(f.odometer,0,true)&&valid(f.liters,0,true)&&valid(f.cost,0,false)&&['RON95','RON97','Diesel','EV Charging'].includes(f.fuelType);
+}
+root.MYCARReceipt={parse,assess,merge,validateFuel};if(typeof module!=='undefined')module.exports=root.MYCARReceipt;
 })(typeof window!=='undefined'?window:globalThis);
