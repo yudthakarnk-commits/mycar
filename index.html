@@ -483,6 +483,7 @@
                                 <p role="status" aria-live="polite" id="receipt-status" class="text-[10px] text-emerald-700 mt-2 hidden"></p>
                                 <img id="receipt-preview" alt="Selected receipt" class="hidden mx-auto mt-2 max-h-48 rounded-xl object-contain" />
                                 <div id="receipt-review" hidden class="text-left text-xs mt-2 space-y-1"></div>
+                                <div id="receipt-plate-box" hidden class="mt-2 text-left text-xs"><label for="receipt-plate-confirm">OCR plate unclear or different. Read the printed plate and type it to confirm the selected vehicle.</label><input id="receipt-plate-confirm" type="text" autocomplete="off" autocapitalize="characters" oninput="MYCARReceiptUI.plateChanged()" class="w-full bg-white border rounded-lg p-2 mt-1"></div>
                                 <button type="button" id="receipt-apply" hidden disabled onclick="MYCARReceiptUI.apply()" class="mt-2 bg-emerald-600 text-white rounded-xl px-3 py-2">Apply to Fuel Record</button>
                             </div>
 
@@ -854,8 +855,8 @@
     <script src="./restore-dry-run.js?v=3.5.0-rc.2-production.1" defer></script>
     <script src="./backup-preview.js?v=3.5.0-rc.2-production.1" defer></script>
     <script src="./rpc-restore.js?v=3.5.0-rc.2-production.1" defer></script>
-    <script src="./fuel-receipt.js?v=1" defer></script>
-    <script src="./fuel-receipt-ui.js?v=1" defer></script>
+    <script src="./fuel-receipt.js?v=2" defer></script>
+    <script src="./fuel-receipt-ui.js?v=2" defer></script>
     <script src="./app.js?v=3.5.0-rc.2-production.1" defer></script>
     <script src="./vehicle-photos.js?v=3.5.0-rc.2-production.1" defer></script>
     <script src="./tng-import.js?v=3.5.0-rc.2-production.1" defer></script>
