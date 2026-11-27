@@ -25,7 +25,7 @@ const server=http.createServer((req,res)=>{
     const ctx=c.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='black';ctx.font='42px monospace';
     ['SHELL SERVICE STATION','20NOV2026','VRN TEST1234','Odometer 22578','FuelSave 95','33.870ltr@RM3.720/ltr','TOTAL RM126.00'].forEach((line,i)=>ctx.fillText(line,40,65+i*75));
     const root=location.origin+'/vendor/ocr/';
-    const worker=await Tesseract.createWorker('eng',1,{workerPath:root+'worker.min.js',corePath:root+'core/',langPath:root+'lang/',workerBlobURL:false});
+    const worker=await Tesseract.createWorker('eng',1,{workerPath:root+'worker.min.js',corePath:root+'core/tesseract-core-lstm.wasm.js',langPath:root+'lang/',workerBlobURL:false});
     try{await worker.setParameters({tessedit_pageseg_mode:'6'});const {data}=await worker.recognize(c);return {text:data.text,parsed:MYCARReceipt.parse(data.text)};}finally{await worker.terminate();}
    });
    assert.equal(result.parsed.total,126,JSON.stringify(result));assert.equal(result.parsed.odometer,22578,JSON.stringify(result));assert.equal(result.parsed.date,'2026-11-20',JSON.stringify(result));

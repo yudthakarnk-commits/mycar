@@ -68,7 +68,7 @@ async function scan(event,context){
  status('Loading local OCR…');await prepareRuntime();if(token!==generation)return;const lib=await bounded(load(),20000,'OCR script');if(token!==generation)return;
  if(retainedWorker&&retainedFactory!==lib.createWorker)await releaseWorker();
  if(retainedWorker){worker=retainedWorker;}else{
- let expired=false;const creation=lib.createWorker('eng',1,{workerPath:OCR_ROOT+'worker.min.js',corePath:OCR_ROOT+'core/',langPath:OCR_ROOT+'lang/',workerBlobURL:false,logger:m=>{if(loggerToken===generation&&m.status==='recognizing text')status('Reading receipt '+Math.round(m.progress*100)+'%');}});
+ let expired=false;const creation=lib.createWorker('eng',1,{workerPath:OCR_ROOT+'worker.min.js',corePath:OCR_ROOT+'core/tesseract-core-lstm.wasm.js',langPath:OCR_ROOT+'lang/',workerBlobURL:false,logger:m=>{if(loggerToken===generation&&m.status==='recognizing text')status('Reading receipt '+Math.round(m.progress*100)+'%');}});
  creation.then(w=>{if(expired)Promise.resolve(w.terminate()).catch(()=>{});},()=>{});
  worker=await bounded(creation,45000,'OCR worker initialization',()=>{expired=true;});
  retainedWorker=worker;retainedFactory=lib.createWorker;
