@@ -8,7 +8,7 @@ const el=id=>document.getElementById(id);
 const OCR_ROOT=new URL('./vendor/ocr/',document.baseURI).href;
 function reset(){
  generation++;result=null;
- if(url){URL.revokeObjectURL(url);url=null;}
+ url=null;
  el('receipt-preview').removeAttribute('src');el('receipt-preview').classList.add('hidden');
  el('receipt-status').classList.add('hidden');el('receipt-status').textContent='';
  el('receipt-review').hidden=true;el('receipt-review').textContent='';
@@ -62,9 +62,15 @@ async function scan(event,context){
  const file=event.target.files?.[0];if(!file)return;reset();
  if(busy){status('Previous scan is finishing. Choose the photo again.');return;}
  if(!file.type.startsWith('image/')||file.size>15*1024*1024){status('Choose an image under 15 MB, or enter values manually.');return;}
- const token=generation;url=URL.createObjectURL(file);el('receipt-preview').src=url;el('receipt-preview').classList.remove('hidden');
+ const token=generation;
  busy=true;let worker,completed=false;loggerToken=token;
  try{
+ const original=new Uint8Array(await bounded(file.arrayBuffer(),10000,'Image file read'));
+ if(token!==generation)return;
+ let binary='';
+ for(let i=0;i<original.length;i+=16384)binary+=String.fromCharCode(...original.subarray(i,i+16384));
+ url='data:'+file.type+';base64,'+btoa(binary);
+ el('receipt-preview').src=url;el('receipt-preview').classList.remove('hidden');
  status('Loading local OCR…');await prepareRuntime();if(token!==generation)return;const lib=await bounded(load(),20000,'OCR script');if(token!==generation)return;
  if(retainedWorker&&retainedFactory!==lib.createWorker)await releaseWorker();
  if(retainedWorker){worker=retainedWorker;}else{
@@ -74,24 +80,25 @@ async function scan(event,context){
  retainedWorker=worker;retainedFactory=lib.createWorker;
  }
  if(token!==generation)return;
- let input=file;try{input=await bounded(enhance(url),10000,'Image decode');}catch(e){}if(token!==generation)return;
+ let input=original;try{input=await bounded(enhance(url),10000,'Image decode');}catch(e){}if(token!==generation)return;
  const passes=[];
  async function recognize(source,mode){
   if(token!==generation)return;
   await bounded(worker.setParameters({tessedit_pageseg_mode:mode}),10000,'OCR parameters');
-  const {data}=await bounded(worker.recognize(source),30000,'OCR recognition');
+  const bytes=source instanceof Uint8Array?source:Uint8Array.from(atob(source.toDataURL('image/png').split(',')[1]),ch=>ch.charCodeAt(0));
+  const {data}=await bounded(worker.recognize(bytes),30000,'OCR recognition');
   if(token===generation)passes.push(window.MYCARReceipt.parse(data.text));
  }
  await recognize(input,'6');if(token!==generation)return;
  status('Cross-checking original receipt…');
- await recognize(file,'3');if(token!==generation)return;
+ await recognize(original,'3');if(token!==generation)return;
  let r=window.MYCARReceipt.merge(passes);
- if(input!==file&&['date','odometer','liters','price','total','plate'].some(k=>r[k]===null)){
+ if(input!==original&&['date','odometer','liters','price','total','plate'].some(k=>r[k]===null)){
   status('Reading receipt with alternative layout…');
   await recognize(input,'11');if(token!==generation)return;
   r=window.MYCARReceipt.merge(passes);
  }
- if(input!==file&&['date','odometer','liters','price','total','plate'].some(k=>r[k]===null)){
+ if(input!==original&&['date','odometer','liters','price','total','plate'].some(k=>r[k]===null)){
   // Overlapping bands retain labels; do not infer fields from crop position.
   const regions=[[0,0.60],[0.35,1]];
   for(const [top,bottom] of regions){
