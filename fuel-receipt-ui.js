@@ -28,6 +28,19 @@ function plateChanged(){
  const manual=normalizedPlate(el('receipt-plate-confirm').value);
  el('receipt-apply').disabled=!!result.needsPlate&&(!manual||manual!==normalizedPlate(c.vehicle.plate));
 }
+// Explicitly warm the same-origin runtime from the controlled page.
+const OCR_FILES=['tesseract.min.js','worker.min.js','core/tesseract-core-lstm.wasm.js','core/tesseract-core-lstm.wasm','core/tesseract-core-simd-lstm.wasm.js','core/tesseract-core-simd-lstm.wasm','lang/eng.traineddata.gz'];
+let runtimeReady=false;
+async function prepareRuntime(){
+ if(runtimeReady)return;
+ // Sequential fetches limit peak memory on mobile; the scoped service worker caches responses.
+ for(const name of OCR_FILES){
+  const response=await fetch(OCR_ROOT+name);
+  if(!response.ok)throw new Error('OCR asset '+name+' HTTP '+response.status);
+  await response.arrayBuffer();
+ }
+ runtimeReady=true;
+}
 function load(){
  if(window.Tesseract?.createWorker)return Promise.resolve(window.Tesseract);
  if(loader)return loader;
@@ -44,7 +57,7 @@ async function scan(event,context){
  const token=generation;url=URL.createObjectURL(file);el('receipt-preview').src=url;el('receipt-preview').classList.remove('hidden');
  busy=true;let worker;
  try{
- status('Loading local OCR…');const lib=await load();if(token!==generation)return;
+ status('Loading local OCR…');await prepareRuntime();if(token!==generation)return;const lib=await load();if(token!==generation)return;
  worker=await lib.createWorker('eng',1,{workerPath:OCR_ROOT+'worker.min.js',corePath:OCR_ROOT+'core/',langPath:OCR_ROOT+'lang/',workerBlobURL:false,logger:m=>{if(token===generation&&m.status==='recognizing text')status('Reading receipt '+Math.round(m.progress*100)+'%');}});
  if(token!==generation)return;
  let input=file;try{input=await enhance(url);}catch(e){}if(token!==generation)return;
@@ -87,7 +100,7 @@ async function scan(event,context){
  for(const warning of check.warnings){const line=document.createElement('div');line.textContent='Warning: '+warning;review.appendChild(line);}
  review.hidden=false;const needsPlate=check.mismatch||!r.plate;result={r,context,key:c.key,needsPlate};el('receipt-plate-box').hidden=!needsPlate;el('receipt-apply').hidden=false;el('receipt-apply').disabled=needsPlate;
  status('Review recognized values against the photo. Nothing has been saved.');
- }catch(e){if(token===generation)status('OCR unavailable or image unreadable. Enter values manually.');}
+ }catch(e){console.warn('MYCAR OCR failed:',e?.name||'Error',e?.message||String(e));if(token===generation)status('OCR unavailable or image unreadable. Enter values manually.');}
  finally{if(worker)try{await worker.terminate();}catch(e){}busy=false;}
 }
 function apply(){

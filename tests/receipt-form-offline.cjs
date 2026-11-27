@@ -2,7 +2,7 @@ const {chromium,webkit}=require('playwright');
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
 const mime={'.js':'application/javascript','.wasm':'application/wasm','.gz':'application/gzip','.html':'text/html'};
-const fixture= '<!doctype html><input id="receipt-file-input" type="file"><img id="receipt-preview"><div id="receipt-status"></div><div id="receipt-review"></div><div id="receipt-plate-box"><input id="receipt-plate-confirm"></div><button id="receipt-apply">Apply</button><input id="field-date" type="date" value="2026-11-27"><input id="fuel-odometer" value="22070"><input id="fuel-liters"><input id="fuel-cost"><select id="fuel-type-name"><option>RON95</option><option>RON97</option></select><input id="fuel-station"><script src="/fuel-receipt.js?v=8"></script><script src="/fuel-receipt-ui.js?v=7"></script>';
+const fixture= '<!doctype html><input id="receipt-file-input" type="file"><img id="receipt-preview"><div id="receipt-status"></div><div id="receipt-review"></div><div id="receipt-plate-box"><input id="receipt-plate-confirm"></div><button id="receipt-apply">Apply</button><input id="field-date" type="date" value="2026-11-27"><input id="fuel-odometer" value="22070"><input id="fuel-liters"><input id="fuel-cost"><select id="fuel-type-name"><option>RON95</option><option>RON97</option></select><input id="fuel-station"><script src="/fuel-receipt.js?v=8"></script><script src="/fuel-receipt-ui.js?v=9"></script>';
 const server=http.createServer((req,res)=>{
  const p=new URL(req.url,'http://localhost').pathname;
  if(p==='/qa-fixture.html'){res.setHeader('Content-Type','text/html');return res.end(fixture);}
@@ -21,6 +21,8 @@ const text='SHELL SERVICE STATION\n20NOV2026\nVRN TEST1234\nOdometer 22578\nFuel
   try{
    const context=await browser.newContext();
    const page=await context.newPage();
+   page.on('console',m=>{if(m.type()==='warning'||m.type()==='error')console.log(engine.name()+' browser '+m.type()+': '+m.text());});
+   page.on('requestfailed',r=>console.log(engine.name()+' failed request: '+r.url()+' '+JSON.stringify(r.failure())));
    await page.goto(origin+'/qa-fixture.html');
    await page.evaluate(async()=>{
     await navigator.serviceWorker.register('/service-worker.js');
@@ -40,6 +42,12 @@ const text='SHELL SERVICE STATION\n20NOV2026\nVRN TEST1234\nOdometer 22578\nFuel
    assert.match(await page.locator('#receipt-status').textContent(),/Nothing has been saved/);
    assert.equal(await page.locator('#field-date').inputValue(),'2026-11-27');
    // Force browser offline, then scan again with real OCR.
+   const cached=await page.evaluate(async()=>{
+    const keys=await caches.keys();const urls=[];
+    for(const key of keys){if(key.startsWith('mycar-rc:'))for(const req of await (await caches.open(key)).keys())urls.push(new URL(req.url).pathname);}
+    return urls;
+   });
+   for(const name of ['tesseract.min.js','worker.min.js','core/tesseract-core-lstm.wasm.js','core/tesseract-core-lstm.wasm','core/tesseract-core-simd-lstm.wasm.js','core/tesseract-core-simd-lstm.wasm','lang/eng.traineddata.gz'])assert.ok(cached.includes('/vendor/ocr/'+name),'Missing cached asset '+name);
    await context.setOffline(true);
    await page.evaluate(()=>MYCARReceiptUI.scan({target:{files:[qaFile]}},qaContext));
    assert.match(await page.locator('#receipt-status').textContent(),/Nothing has been saved/);
