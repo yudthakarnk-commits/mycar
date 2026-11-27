@@ -27,10 +27,13 @@ function parse(text){
  if(m[2]===','||/[ \t]/.test(v))warnings.push('Review OCR formatting: '+label+' ('+v+').');
  const n=Number(m[1]+'.'+m[3]);return Number.isFinite(n)&&n>0?n:null;
  }
- const qty=[...s.matchAll(/(?:^|\s)(\d+[ \t]*[.,][ \t]*\d{1,3})[ \t]*(?:[l1][ \t]*tr|litres?|L)[ \t]*@[ \t]*RM[ \t]*(\d+[ \t]*[.,][ \t]*\d{1,3})[ \t]*\/[ \t]*(?:[l1][ \t]*tr|litres?|L)\b/gim)];
- const liters=unique(qty.map(m=>decimal(m[1],3,3,'litres')),'litres');
- const price=unique(qty.map(m=>decimal(m[2],2,3,'unit price')),'unit price');
- const totals=[...s.matchAll(/^[ \t]*TOTAL[ \t]+RM[ \t]*(\d+[ \t]*[.,][ \t]*\d{2})[ \t]*$/gim)];
+ // Extract independently anchored volume and price, even if the other field is unreadable.
+ const unit=String.raw`(?:[l1i][ \t]*t[ \t]*r|litres?|L)`;
+ const volPattern=new RegExp(String.raw`(?:^|\s)(\d+[ \t]*[.,][ \t]*\d{3})[ \t]*`+unit+String.raw`(?=[ \t]*(?:@|$)|[ \t]+RM\b)`,'gim');
+ const pricePattern=new RegExp(String.raw`@[ \t]*RM[ \t]*(\d+[ \t]*[.,][ \t]*\d{2,3})[ \t]*\/[ \t]*`+unit+String.raw`\b`,'gim');
+ const liters=unique([...s.matchAll(volPattern)].map(m=>decimal(m[1],3,3,'litres')),'litres');
+ const price=unique([...s.matchAll(pricePattern)].map(m=>decimal(m[1],2,3,'unit price')),'unit price');
+ const totals=[...s.matchAll(/^[ \t]*TOTAL[ \t]*:?[ \t]*(?:RM[ \t]*)?(\d+[ \t]*[.,][ \t]*\d{2})[ \t]*$/gim)];
  const total=unique(totals.map(m=>decimal(m[1],2,2,'total')),'total');
  const odometer=unique([...s.matchAll(/^[ \t]*Odo[ \t]*me[ \t]*ter[ \t]+(\d+|\d{1,3}(?:,\d{3})+)[ \t]*$/gim)].map(m=>{const n=Number(m[1].replace(/,/g,''));return Number.isSafeInteger(n)&&n>0?n:null;}),'odometer');
  const plate=unique([...s.matchAll(/^[ \t]*VRN[ \t]+([A-Z0-9 -]+)[ \t]*$/gim)].map(m=>m[1].trim()),'plate');

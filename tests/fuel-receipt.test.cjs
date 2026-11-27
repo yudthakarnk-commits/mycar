@@ -52,3 +52,15 @@ assert.equal(parse('20N0V202O').date,null);
 assert.equal(parse('31N0V2026').date,null);
 assert.equal(parse('20N0V2026\n21NOV2026').date,null);
 console.log('Month-only OCR normalization tests passed');
+
+assert.equal(parse('37.960ltr@RMX.320/ltr').liters,37.96);
+assert.equal(parse('XX.960ltr@RM4.320/ltr').price,4.32);
+assert.equal(parse('37.960l t r\n@RM4.320/i t r').liters,37.96);
+assert.equal(parse('37.960l t r\n@RM4.320/i t r').price,4.32);
+assert.equal(parse('TOTAL: RM163.99').total,163.99);
+assert.equal(parse('SUBTOTAL RM163.99').total,null);
+assert.equal(parse('TOTAL RM163.99\nTOTAL: RM164.99').total,null);
+assert.equal(parse('35,760ltr@RM4.670/ltr\n36,760ltr@RM4.670/ltr').liters,null);
+assert.equal(parse('37.96ltr@RM4.320/ltr').liters,null);
+assert.equal(parse('O7.960ltr@RM4.320/ltr').liters,null);
+console.log('Independent anchored extraction tests passed');
