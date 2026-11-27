@@ -3,7 +3,9 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
 const root=path.resolve(__dirname,'..');
 const mime={'.js':'application/javascript','.wasm':'application/wasm','.gz':'application/gzip','.html':'text/html'};
 const fixture= '<!doctype html><input id="receipt-file-input" type="file"><img id="receipt-preview"><div id="receipt-status"></div><div id="receipt-review"></div><div id="receipt-plate-box"><input id="receipt-plate-confirm"></div><button id="receipt-apply">Apply</button><input id="field-date" type="date" value="2026-11-27"><input id="fuel-odometer" value="22070"><input id="fuel-liters"><input id="fuel-cost"><select id="fuel-type-name"><option>RON95</option><option>RON97</option></select><input id="fuel-station"><script src="/fuel-receipt.js?v=8"></script><script src="/fuel-receipt-ui.js?v=13"></script>';
+let networkCut=false,blockedRequests=0;
 const server=http.createServer((req,res)=>{
+ if(networkCut){blockedRequests++;req.socket.destroy();return;}
  const p=new URL(req.url,'http://localhost').pathname;
  if(p==='/qa-fixture.html'){res.setHeader('Content-Type','text/html');return res.end(fixture);}
  const f=path.resolve(root,'.'+(p==='/'?'/index.html':p));
@@ -53,6 +55,21 @@ const text='SHELL SERVICE STATION\n20NOV2026\nVRN TEST1234\nOdometer 22578\nFuel
    });
    for(const name of ['tesseract.min.js','worker.min.js','core/tesseract-core-lstm.wasm.js','core/tesseract-core-lstm.wasm','core/tesseract-core-simd-lstm.wasm.js','core/tesseract-core-simd-lstm.wasm','lang/eng.traineddata.gz'])assert.ok(cached.includes('/vendor/ocr/'+name),'Missing cached asset '+name);
    console.log(engine.name()+' cache verified; starting offline OCR');
+   // Independent transport outage test: keep browser File APIs enabled,
+   // but physically reject all HTTP requests to the only OCR origin.
+   networkCut=true;
+   try{
+    const before=blockedRequests;
+    await page.evaluate(async()=>{try{await fetch('/qa-network-probe?'+Date.now());}catch(e){}});
+    assert.ok(blockedRequests>before,'Network outage probe did not reach blocked transport');
+    await page.evaluate(()=>MYCARReceiptUI.scan({target:{files:[new File([qaBytes],'outage.png',{type:'image/png'})]}},qaContext));
+    assert.match(await page.locator('#receipt-status').textContent(),/Nothing has been saved/);
+    const review=await page.locator('#receipt-review').textContent();
+    assert.match(review,/Total RM: 126(?:\D|$)/);
+    assert.match(review,/Odometer: 22578(?:\D|$)/);
+    assert.match(review,/Date: 2026-11-20/);
+    console.log(engine.name()+' real File OCR with server transport unavailable passed');
+   }finally{networkCut=false;}
    await context.setOffline(true);
    const probes=await page.evaluate(async()=>{
     const results={};
