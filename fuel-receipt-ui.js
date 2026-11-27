@@ -12,6 +12,10 @@ function reset(){
  el('receipt-plate-box').hidden=true;el('receipt-plate-confirm').value='';
  el('receipt-apply').hidden=true;el('receipt-apply').disabled=true;
 }
+function bounded(promise,ms,label,onTimeout){
+ let timer;
+ return Promise.race([Promise.resolve(promise),new Promise((_,reject)=>{timer=setTimeout(()=>{try{onTimeout?.();}catch(e){}reject(new Error(label+' timed out'));},ms);})]).finally(()=>clearTimeout(timer));
+}
 function status(s){el('receipt-status').textContent=s;el('receipt-status').classList.remove('hidden');}
 async function enhance(source){
  const image=new Image();image.src=source;await image.decode();
@@ -35,9 +39,10 @@ async function prepareRuntime(){
  if(runtimeReady)return;
  // Sequential fetches limit peak memory on mobile; the scoped service worker caches responses.
  for(const name of OCR_FILES){
-  const response=await fetch(OCR_ROOT+name);
+  const controller=new AbortController();
+  const response=await bounded(fetch(OCR_ROOT+name,{signal:controller.signal}),20000,'OCR asset '+name,()=>controller.abort());
   if(!response.ok)throw new Error('OCR asset '+name+' HTTP '+response.status);
-  await response.arrayBuffer();
+  await bounded(response.arrayBuffer(),20000,'OCR asset body '+name,()=>controller.abort());
  }
  runtimeReady=true;
 }
@@ -57,15 +62,17 @@ async function scan(event,context){
  const token=generation;url=URL.createObjectURL(file);el('receipt-preview').src=url;el('receipt-preview').classList.remove('hidden');
  busy=true;let worker;
  try{
- status('Loading local OCR…');await prepareRuntime();if(token!==generation)return;const lib=await load();if(token!==generation)return;
- worker=await lib.createWorker('eng',1,{workerPath:OCR_ROOT+'worker.min.js',corePath:OCR_ROOT+'core/',langPath:OCR_ROOT+'lang/',workerBlobURL:false,logger:m=>{if(token===generation&&m.status==='recognizing text')status('Reading receipt '+Math.round(m.progress*100)+'%');}});
+ status('Loading local OCR…');await prepareRuntime();if(token!==generation)return;const lib=await bounded(load(),20000,'OCR script');if(token!==generation)return;
+ let expired=false;const creation=lib.createWorker('eng',1,{workerPath:OCR_ROOT+'worker.min.js',corePath:OCR_ROOT+'core/',langPath:OCR_ROOT+'lang/',workerBlobURL:false,logger:m=>{if(token===generation&&m.status==='recognizing text')status('Reading receipt '+Math.round(m.progress*100)+'%');}});
+ creation.then(w=>{if(expired)Promise.resolve(w.terminate()).catch(()=>{});},()=>{});
+ worker=await bounded(creation,45000,'OCR worker initialization',()=>{expired=true;});
  if(token!==generation)return;
- let input=file;try{input=await enhance(url);}catch(e){}if(token!==generation)return;
+ let input=file;try{input=await bounded(enhance(url),10000,'Image decode');}catch(e){}if(token!==generation)return;
  const passes=[];
  async function recognize(source,mode){
   if(token!==generation)return;
-  await worker.setParameters({tessedit_pageseg_mode:mode});
-  const {data}=await worker.recognize(source);
+  await bounded(worker.setParameters({tessedit_pageseg_mode:mode}),10000,'OCR parameters');
+  const {data}=await bounded(worker.recognize(source),30000,'OCR recognition');
   if(token===generation)passes.push(window.MYCARReceipt.parse(data.text));
  }
  await recognize(input,'6');if(token!==generation)return;
@@ -87,7 +94,7 @@ async function scan(event,context){
    crop.width=input.width;crop.height=height;
    crop.getContext('2d').drawImage(input,0,y,input.width,height,0,0,input.width,height);
    status('Checking receipt sections…');
-   try{await recognize(crop,'6');}catch(e){if(token!==generation)return;}
+   await recognize(crop,'6');
    crop.width=0;crop.height=0;
   }
   r=window.MYCARReceipt.merge(passes);
@@ -101,7 +108,7 @@ async function scan(event,context){
  review.hidden=false;const needsPlate=check.mismatch||!r.plate;result={r,context,key:c.key,needsPlate};el('receipt-plate-box').hidden=!needsPlate;el('receipt-apply').hidden=false;el('receipt-apply').disabled=needsPlate;
  status('Review recognized values against the photo. Nothing has been saved.');
  }catch(e){console.warn('MYCAR OCR failed:',e?.name||'Error',e?.message||String(e));if(token===generation)status('OCR unavailable or image unreadable. Enter values manually.');}
- finally{if(worker)try{await worker.terminate();}catch(e){}busy=false;}
+ finally{if(worker)try{await bounded(worker.terminate(),5000,'OCR worker termination');}catch(e){}busy=false;}
 }
 function apply(){
  if(!result)return;const {r,context,key}=result;const c=context();

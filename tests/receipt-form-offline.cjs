@@ -2,7 +2,7 @@ const {chromium,webkit}=require('playwright');
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
 const mime={'.js':'application/javascript','.wasm':'application/wasm','.gz':'application/gzip','.html':'text/html'};
-const fixture= '<!doctype html><input id="receipt-file-input" type="file"><img id="receipt-preview"><div id="receipt-status"></div><div id="receipt-review"></div><div id="receipt-plate-box"><input id="receipt-plate-confirm"></div><button id="receipt-apply">Apply</button><input id="field-date" type="date" value="2026-11-27"><input id="fuel-odometer" value="22070"><input id="fuel-liters"><input id="fuel-cost"><select id="fuel-type-name"><option>RON95</option><option>RON97</option></select><input id="fuel-station"><script src="/fuel-receipt.js?v=8"></script><script src="/fuel-receipt-ui.js?v=9"></script>';
+const fixture= '<!doctype html><input id="receipt-file-input" type="file"><img id="receipt-preview"><div id="receipt-status"></div><div id="receipt-review"></div><div id="receipt-plate-box"><input id="receipt-plate-confirm"></div><button id="receipt-apply">Apply</button><input id="field-date" type="date" value="2026-11-27"><input id="fuel-odometer" value="22070"><input id="fuel-liters"><input id="fuel-cost"><select id="fuel-type-name"><option>RON95</option><option>RON97</option></select><input id="fuel-station"><script src="/fuel-receipt.js?v=8"></script><script src="/fuel-receipt-ui.js?v=10"></script>';
 const server=http.createServer((req,res)=>{
  const p=new URL(req.url,'http://localhost').pathname;
  if(p==='/qa-fixture.html'){res.setHeader('Content-Type','text/html');return res.end(fixture);}
@@ -23,11 +23,12 @@ const text='SHELL SERVICE STATION\n20NOV2026\nVRN TEST1234\nOdometer 22578\nFuel
    const page=await context.newPage();
    page.on('console',m=>{if(m.type()==='warning'||m.type()==='error')console.log(engine.name()+' browser '+m.type()+': '+m.text());});
    page.on('requestfailed',r=>console.log(engine.name()+' failed request: '+r.url()+' '+JSON.stringify(r.failure())));
-   await page.goto(origin+'/qa-fixture.html');
+   console.log(engine.name()+' fixture navigation');
+   await page.goto(origin+'/qa-fixture.html',{timeout:30000});
    await page.evaluate(async()=>{
     await navigator.serviceWorker.register('/service-worker.js');
-    await navigator.serviceWorker.ready;
-    if(!navigator.serviceWorker.controller)await new Promise(resolve=>navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true}));
+    await Promise.race([navigator.serviceWorker.ready,new Promise((_,reject)=>setTimeout(()=>reject(Error('Service worker ready timeout')),30000))]);
+    if(!navigator.serviceWorker.controller)await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Service worker control timeout')),30000);navigator.serviceWorker.addEventListener('controllerchange',()=>{clearTimeout(timer);resolve();},{once:true});});
    });
    await page.evaluate(async()=>{
     const c=document.createElement('canvas');c.width=1200;c.height=800;
@@ -37,6 +38,7 @@ const text='SHELL SERVICE STATION\n20NOV2026\nVRN TEST1234\nOdometer 22578\nFuel
     window.qaContext=()=>({key:'vehicle|',vehicle:{id:'vehicle',plate:'TEST1234'},records:[],id:'',refresh:()=>{window.qaRefresh=(window.qaRefresh||0)+1;}});
     window.qaContext.key='vehicle|';window.confirm=()=>true;
    });
+   console.log(engine.name()+' starting online OCR');
    // Warm the real same-origin runtime through the actual service worker and UI.
    await page.evaluate(()=>MYCARReceiptUI.scan({target:{files:[qaFile]}},qaContext));
    assert.match(await page.locator('#receipt-status').textContent(),/Nothing has been saved/);
@@ -48,6 +50,7 @@ const text='SHELL SERVICE STATION\n20NOV2026\nVRN TEST1234\nOdometer 22578\nFuel
     return urls;
    });
    for(const name of ['tesseract.min.js','worker.min.js','core/tesseract-core-lstm.wasm.js','core/tesseract-core-lstm.wasm','core/tesseract-core-simd-lstm.wasm.js','core/tesseract-core-simd-lstm.wasm','lang/eng.traineddata.gz'])assert.ok(cached.includes('/vendor/ocr/'+name),'Missing cached asset '+name);
+   console.log(engine.name()+' cache verified; starting offline OCR');
    await context.setOffline(true);
    await page.evaluate(()=>MYCARReceiptUI.scan({target:{files:[qaFile]}},qaContext));
    assert.match(await page.locator('#receipt-status').textContent(),/Nothing has been saved/);

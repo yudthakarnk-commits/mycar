@@ -1,8 +1,8 @@
 /* MYCAR scoped PWA cache. Do not delete unrelated origin caches. */
 const CACHE_PREFIX='mycar-rc:'+self.registration.scope+':';
-const CACHE=CACHE_PREFIX+'3.5.0-rc.2-production.1-receipt-dev.9';
+const CACHE=CACHE_PREFIX+'3.5.0-rc.2-production.1-receipt-dev.10';
 const SHELL=['./','./index.html','./auth-config.js?v=3.5.0-rc.2-production.1','./auth.js?v=3.5.0-rc.2-production.1','./cloud-sync.js?v=3.5.0-rc.2-production.1','./app.js?v=receipt-dev.6','./sync-health.js?v=3.5.0-rc.2-production.1','./restore-dry-run.js?v=3.5.0-rc.2-production.1','./backup-preview.js?v=3.5.0-rc.2-production.1','./rpc-restore.js?v=3.5.0-rc.2-production.1','./tng-import.js?v=3.5.0-rc.2-production.1','./vehicle-photos.js?v=3.5.0-rc.2-production.1','./manifest.webmanifest','./assets/auth.css?v=3.5.0-rc.2-production.1','./assets/app.css?v=3.5.0-rc.2-production.1','./assets/car-photos.css?v=3.5.0-rc.2-production.1','./assets/tng-import.css?v=3.5.0-rc.2-production.1','./assets/mobile-viewport-fix.css?v=3.5.0-rc.2-production.1','./assets/sync-health.css?v=3.5.0-rc.2-production.1','./assets/backup-preview.css?v=3.5.0-rc.2-production.1'];
-SHELL.push('./fuel-receipt.js?v=8','./fuel-receipt-ui.js?v=9','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png','./assets/toyota-corolla-cross-3q.webp');
+SHELL.push('./fuel-receipt.js?v=8','./fuel-receipt-ui.js?v=10','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png','./assets/toyota-corolla-cross-3q.webp');
 const SCOPE=new URL(self.registration.scope).pathname;
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(c=>c.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith(CACHE_PREFIX)&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
