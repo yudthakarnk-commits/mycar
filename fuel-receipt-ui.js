@@ -1,6 +1,9 @@
 (function(){
 'use strict';
-let generation=0, url=null, result=null, busy=false, loader=null;
+let generation=0, url=null, result=null, busy=false, loader=null, retainedWorker=null, retainedFactory=null;
+let loggerToken=-1;
+async function releaseWorker(){const w=retainedWorker;retainedWorker=null;retainedFactory=null;if(w)try{await bounded(w.terminate(),5000,'OCR worker termination');}catch(e){}}
+window.addEventListener('pagehide',()=>{generation++;void releaseWorker();});
 const el=id=>document.getElementById(id);
 const OCR_ROOT=new URL('./vendor/ocr/',document.baseURI).href;
 function reset(){
@@ -60,12 +63,16 @@ async function scan(event,context){
  if(busy){status('Previous scan is finishing. Choose the photo again.');return;}
  if(!file.type.startsWith('image/')||file.size>15*1024*1024){status('Choose an image under 15 MB, or enter values manually.');return;}
  const token=generation;url=URL.createObjectURL(file);el('receipt-preview').src=url;el('receipt-preview').classList.remove('hidden');
- busy=true;let worker;
+ busy=true;let worker,completed=false;loggerToken=token;
  try{
  status('Loading local OCR…');await prepareRuntime();if(token!==generation)return;const lib=await bounded(load(),20000,'OCR script');if(token!==generation)return;
- let expired=false;const creation=lib.createWorker('eng',1,{workerPath:OCR_ROOT+'worker.min.js',corePath:OCR_ROOT+'core/',langPath:OCR_ROOT+'lang/',workerBlobURL:false,logger:m=>{if(token===generation&&m.status==='recognizing text')status('Reading receipt '+Math.round(m.progress*100)+'%');}});
+ if(retainedWorker&&retainedFactory!==lib.createWorker)await releaseWorker();
+ if(retainedWorker){worker=retainedWorker;}else{
+ let expired=false;const creation=lib.createWorker('eng',1,{workerPath:OCR_ROOT+'worker.min.js',corePath:OCR_ROOT+'core/',langPath:OCR_ROOT+'lang/',workerBlobURL:false,logger:m=>{if(loggerToken===generation&&m.status==='recognizing text')status('Reading receipt '+Math.round(m.progress*100)+'%');}});
  creation.then(w=>{if(expired)Promise.resolve(w.terminate()).catch(()=>{});},()=>{});
  worker=await bounded(creation,45000,'OCR worker initialization',()=>{expired=true;});
+ retainedWorker=worker;retainedFactory=lib.createWorker;
+ }
  if(token!==generation)return;
  let input=file;try{input=await bounded(enhance(url),10000,'Image decode');}catch(e){}if(token!==generation)return;
  const passes=[];
@@ -106,9 +113,9 @@ async function scan(event,context){
  for(const [name,value] of fields){const line=document.createElement('div');line.textContent=name+': '+(value??'Not recognized');review.appendChild(line);}
  for(const warning of check.warnings){const line=document.createElement('div');line.textContent='Warning: '+warning;review.appendChild(line);}
  review.hidden=false;const needsPlate=check.mismatch||!r.plate;result={r,context,key:c.key,needsPlate};el('receipt-plate-box').hidden=!needsPlate;el('receipt-apply').hidden=false;el('receipt-apply').disabled=needsPlate;
- status('Review recognized values against the photo. Nothing has been saved.');
+ status('Review recognized values against the photo. Nothing has been saved.');completed=true;
  }catch(e){console.warn('MYCAR OCR failed:',e?.name||'Error',e?.message||String(e));if(token===generation)status('OCR unavailable or image unreadable. Enter values manually.');}
- finally{if(worker)try{await bounded(worker.terminate(),5000,'OCR worker termination');}catch(e){}busy=false;}
+ finally{if(!completed){if(worker===retainedWorker)await releaseWorker();else if(worker)try{await bounded(worker.terminate(),5000,'OCR worker termination');}catch(e){}}busy=false;}
 }
 function apply(){
  if(!result)return;const {r,context,key}=result;const c=context();

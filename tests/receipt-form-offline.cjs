@@ -2,7 +2,7 @@ const {chromium,webkit}=require('playwright');
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
 const mime={'.js':'application/javascript','.wasm':'application/wasm','.gz':'application/gzip','.html':'text/html'};
-const fixture= '<!doctype html><input id="receipt-file-input" type="file"><img id="receipt-preview"><div id="receipt-status"></div><div id="receipt-review"></div><div id="receipt-plate-box"><input id="receipt-plate-confirm"></div><button id="receipt-apply">Apply</button><input id="field-date" type="date" value="2026-11-27"><input id="fuel-odometer" value="22070"><input id="fuel-liters"><input id="fuel-cost"><select id="fuel-type-name"><option>RON95</option><option>RON97</option></select><input id="fuel-station"><script src="/fuel-receipt.js?v=8"></script><script src="/fuel-receipt-ui.js?v=10"></script>';
+const fixture= '<!doctype html><input id="receipt-file-input" type="file"><img id="receipt-preview"><div id="receipt-status"></div><div id="receipt-review"></div><div id="receipt-plate-box"><input id="receipt-plate-confirm"></div><button id="receipt-apply">Apply</button><input id="field-date" type="date" value="2026-11-27"><input id="fuel-odometer" value="22070"><input id="fuel-liters"><input id="fuel-cost"><select id="fuel-type-name"><option>RON95</option><option>RON97</option></select><input id="fuel-station"><script src="/fuel-receipt.js?v=8"></script><script src="/fuel-receipt-ui.js?v=11"></script>';
 const server=http.createServer((req,res)=>{
  const p=new URL(req.url,'http://localhost').pathname;
  if(p==='/qa-fixture.html'){res.setHeader('Content-Type','text/html');return res.end(fixture);}
@@ -54,7 +54,7 @@ const text='SHELL SERVICE STATION\n20NOV2026\nVRN TEST1234\nOdometer 22578\nFuel
    await context.setOffline(true);
    await page.evaluate(()=>MYCARReceiptUI.scan({target:{files:[qaFile]}},qaContext));
    assert.match(await page.locator('#receipt-status').textContent(),/Nothing has been saved/);
-   console.log(engine.name()+' warm-cache offline OCR passed');
+   console.log(engine.name()+' warm-session offline OCR passed');
    await context.setOffline(false);
    // Deterministic OCR fixtures exercise real UI independently of recognition variability.
    await page.evaluate(async(text)=>{
