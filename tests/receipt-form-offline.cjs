@@ -34,7 +34,9 @@ const text='SHELL SERVICE STATION\n20NOV2026\nVRN TEST1234\nOdometer 22578\nFuel
     const c=document.createElement('canvas');c.width=1200;c.height=800;
     const ctx=c.getContext('2d');ctx.fillStyle='white';ctx.fillRect(0,0,c.width,c.height);ctx.fillStyle='black';ctx.font='42px monospace';
     ['SHELL SERVICE STATION','20NOV2026','VRN TEST1234','Odometer 22578','FuelSave 95','33.870ltr@RM3.720/ltr','TOTAL RM126.00'].forEach((line,i)=>ctx.fillText(line,40,65+i*75));
-    window.qaFile=new File([await new Promise(resolve=>c.toBlob(resolve,'image/png'))],'synthetic.png',{type:'image/png'});
+    window.qaData=c.toDataURL('image/png');
+    window.qaBytes=Uint8Array.from(atob(qaData.split(',')[1]),ch=>ch.charCodeAt(0));
+    window.qaFile=new File([qaBytes],'synthetic.png',{type:'image/png'});
     window.qaContext=()=>({key:'vehicle|',vehicle:{id:'vehicle',plate:'TEST1234'},records:[],id:'',refresh:()=>{window.qaRefresh=(window.qaRefresh||0)+1;}});
     window.qaContext.key='vehicle|';window.confirm=()=>true;
    });
@@ -52,6 +54,22 @@ const text='SHELL SERVICE STATION\n20NOV2026\nVRN TEST1234\nOdometer 22578\nFuel
    for(const name of ['tesseract.min.js','worker.min.js','core/tesseract-core-lstm.wasm.js','core/tesseract-core-lstm.wasm','core/tesseract-core-simd-lstm.wasm.js','core/tesseract-core-simd-lstm.wasm','lang/eng.traineddata.gz'])assert.ok(cached.includes('/vendor/ocr/'+name),'Missing cached asset '+name);
    console.log(engine.name()+' cache verified; starting offline OCR');
    await context.setOffline(true);
+   const probes=await page.evaluate(async()=>{
+    const results={};
+    async function probe(name,fn){let timer;try{results[name]=await Promise.race([fn(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Probe timeout')),10000);})]);}catch(e){results[name]={error:e.name,message:e.message};}finally{clearTimeout(timer);}}
+    await probe('existingFile',async()=>({bytes:(await qaFile.arrayBuffer()).byteLength}));
+    await probe('freshFile',async()=>({bytes:(await new File([qaBytes],'fresh.png',{type:'image/png'}).arrayBuffer()).byteLength}));
+    await probe('memoryBytes',async()=>({bytes:qaBytes.byteLength,png:qaBytes[0]===137&&qaBytes[1]===80}));
+    await probe('dataImage',async()=>{const im=new Image();im.src=qaData;await im.decode();return {width:im.naturalWidth,height:im.naturalHeight};});
+    return results;
+   });
+   console.log(engine.name()+' offline input probes: '+JSON.stringify(probes));
+   // Diagnostic only: exercise the same UI/real OCR with an in-memory file adapter.
+   // No successful diagnostic can waive the real File test below.
+   await page.evaluate(()=>MYCARReceiptUI.scan({target:{files:[{type:'image/png',size:qaBytes.byteLength,arrayBuffer:async()=>qaBytes.slice().buffer}]}},qaContext));
+   const memStatus=await page.locator('#receipt-status').textContent();
+   const memReview=await page.locator('#receipt-review').textContent();
+   console.log(engine.name()+' offline memory-input result: '+JSON.stringify({status:memStatus,review:memReview}));
    await page.evaluate(()=>MYCARReceiptUI.scan({target:{files:[qaFile]}},qaContext));
    assert.match(await page.locator('#receipt-status').textContent(),/Nothing has been saved/);
    const offlineReview=await page.locator('#receipt-review').textContent();
