@@ -28,3 +28,4 @@ jobs:
           node -e "const v=require('playwright/package.json').version; if(v!=='1.56.1')throw Error(v); console.log('Playwright '+v)"
           node "$NODE_PATH/playwright/cli.js" install --with-deps chromium webkit
           node tests/receipt-browser.cjs
+          node tests/receipt-form-offline.cjs
