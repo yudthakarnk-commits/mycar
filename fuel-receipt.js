@@ -36,13 +36,17 @@ function parse(text){
  const totals=[...s.matchAll(/^[ \t]*TOTAL[ \t]*:?[ \t]*(?:RM[ \t]*)?(\d+[ \t]*[.,][ \t]*\d{2})[ \t]*$/gim)];
  const total=unique(totals.map(m=>decimal(m[1],2,2,'total')),'total');
  const odometer=unique([...s.matchAll(/^[ \t]*Odo[ \t]*me[ \t]*ter[ \t]+(\d+|\d{1,3}(?:,\d{3})+)[ \t]*$/gim)].map(m=>{const n=Number(m[1].replace(/,/g,''));return Number.isSafeInteger(n)&&n>0?n:null;}),'odometer');
- const plate=unique([...s.matchAll(/^[ \t]*VRN[ \t]+([A-Z0-9 -]+)[ \t]*$/gim)].map(m=>m[1].trim()),'plate');
+ // Normalize spacing/case for comparison, never substitute characters from the selected vehicle.
+ const plateValues=[...s.matchAll(/^[ \t]*(?:V[ \t]*R[ \t]*N|VEHICLE[ \t]+(?:NO\.?|REG(?:ISTRATION)?(?:[ \t]+NO\.?)?)|REG[ \t]+NO\.?)[ \t]*[:=]?[ \t]+([A-Z0-9 -]+)[ \t]*$/gim)].map(m=>m[1].trim()).filter(v=>/[A-Z]/i.test(v)&&/\d/.test(v)&&v.replace(/[ -]/g,'').length<=12);
+ const plateKeys=[...new Set(plateValues.map(v=>v.replace(/[ -]/g,'').toUpperCase()))];
+ const plate=plateKeys.length>1?(warnings.push('Conflicting plate values; enter manually.'),null):plateValues[0]??null;
  const types=[];
  if(/FuelSave[ \t]*95|\bRON[ \t]*95\b/i.test(s))types.push('RON95');
  if(/\bRON[ \t]*97\b|V-Power[ \t]*97/i.test(s))types.push('RON97');
  if(/\bDiesel\b/i.test(s))types.push('Diesel');
  const fuelType=unique(types,'fuel type');
- const shell=/SHELL[ \t]+SERVICE[ \t]+(?:STATION|SIATLON)/i.test(s);
+ // Only use explicit brand evidence; generic fuel type is not a station name.
+ const shell=/\bSHELL[ \t]+(?:SERVICE[ \t]+(?:STATION|SIATLON)|MCA|CARD)\b|\bSHELLCARD\b|^[ \t]*SHELL[ \t]*$/im.test(s);
  const station=shell&&/SEREMBAN/i.test(s)?'Shell R&R Seremban'+(/ARAH UTARA/i.test(s)?' (Northbound)':''):shell?'Shell':null;
  if(!date||!odometer||!liters||!price||total===null||!fuelType)warnings.push('Missing or unclear receipt fields; verify manually.');
  if(liters!==null&&price!==null&&total!==null&&Math.abs(liters*price-total)>0.015)warnings.push('Volume × price differs from total.');
@@ -62,10 +66,12 @@ function merge(results){
  const keys=['date','odometer','liters','price','total','plate','fuelType','station'];
  const out={},warnings=[];
  for(const k of keys){
-  const values=[...new Set(results.map(r=>r[k]).filter(v=>v!=null))];
-  out[k]=values.length===1?values[0]:null;
+  const raw=results.map(r=>r[k]).filter(v=>v!=null);
+  const norm=v=>k==='plate'?String(v).replace(/[ -]/g,'').toUpperCase():v;
+  const values=[...new Set(raw.map(norm))];
+  out[k]=values.length===1?raw[0]:null;
   if(values.length>1||results.some(r=>r.warnings.some(w=>w.toLowerCase().startsWith('conflicting '+({liters:'litres',price:'unit price',fuelType:'fuel type'}[k]||k)+' ')))){out[k]=null;warnings.push('Conflicting '+k+' across OCR passes; enter manually.');}
-  else if(values.length===1&&results.filter(r=>r[k]===values[0]).length===1)warnings.push('Review '+k+': detected in one OCR pass only.');
+  else if(values.length===1&&raw.filter(v=>norm(v)===values[0]).length===1)warnings.push('Review '+k+': detected in one OCR pass only.');
  }
  for(const r of results)for(const w of r.warnings)if(w.startsWith('Review OCR formatting'))warnings.push(w);
  if(keys.some(k=>out[k]===null))warnings.push('Missing or conflicting receipt fields; enter manually.');

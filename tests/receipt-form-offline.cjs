@@ -2,7 +2,7 @@ const {chromium,webkit}=require('playwright');
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
 const mime={'.js':'application/javascript','.wasm':'application/wasm','.gz':'application/gzip','.html':'text/html'};
-const fixture= '<!doctype html><input id="receipt-file-input" type="file"><img id="receipt-preview"><div id="receipt-status"></div><div id="receipt-review"></div><div id="receipt-plate-box"><input id="receipt-plate-confirm"></div><button id="receipt-apply">Apply</button><input id="field-date" type="date" value="2026-11-27"><input id="fuel-odometer" value="22070"><input id="fuel-liters"><input id="fuel-cost"><select id="fuel-type-name"><option>RON95</option><option>RON97</option></select><input id="fuel-station"><script src="/fuel-receipt.js?v=14"></script><script src="/fuel-receipt-ui.js?v=13"></script>';
+const fixture= '<!doctype html><input id="receipt-file-input" type="file"><img id="receipt-preview"><div id="receipt-status"></div><div id="receipt-review"></div><div id="receipt-plate-box"><input id="receipt-plate-confirm"></div><button id="receipt-apply">Apply</button><input id="field-date" type="date" value="2026-11-27"><input id="fuel-odometer" value="22070"><input id="fuel-liters"><input id="fuel-cost"><select id="fuel-type-name"><option>RON95</option><option>RON97</option></select><input id="fuel-station"><script src="/fuel-receipt.js?v=15"></script><script src="/fuel-receipt-ui.js?v=13"></script>';
 let networkCut=false,blockedRequests=0;
 const server=http.createServer((req,res)=>{
  if(networkCut){blockedRequests++;req.socket.destroy();return;}

@@ -64,3 +64,16 @@ assert.equal(parse('35,760ltr@RM4.670/ltr\n36,760ltr@RM4.670/ltr').liters,null);
 assert.equal(parse('37.96ltr@RM4.320/ltr').liters,null);
 assert.equal(parse('O7.960ltr@RM4.320/ltr').liters,null);
 console.log('Independent anchored extraction tests passed');
+
+assert.equal(parse('V R N : VQG 8991').plate,'VQG 8991');
+assert.equal(parse('VEHICLE NO. ABC1234').plate,'ABC1234');
+assert.equal(parse('VRN ABC1234\nVRN ABC 1234').plate,'ABC1234');
+assert.equal(parse('VRN ABC1234\nVRN ABC1235').plate,null);
+assert.equal(parse('VRN 123456').plate,null);
+assert.equal(parse('VRN UNREADABLE').plate,null);
+assert.equal(merge([{...r,plate:'VQG 8991'},{...r,plate:'vqg8991'}]).plate,'VQG 8991');
+assert.equal(merge([{...r,plate:'VQG8991'},{...r,plate:'VQG8992'}]).plate,null);
+assert.equal(parse('Shellcard').station,'Shell');
+assert.equal(parse('App Shell MCA').station,'Shell');
+assert.equal(parse('FuelSave 95').station,null);
+console.log('Plate formatting and explicit brand evidence tests passed');
