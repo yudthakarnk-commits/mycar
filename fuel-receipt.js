@@ -5,9 +5,11 @@ function parse(text){
  const warnings=[];
  const months=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
  // Accept only complete, labelled or structurally recognizable date tokens.
- // OCR-confused digits are never substituted automatically.
- const dates=[...s.matchAll(/\b(\d{1,2})[ \t]*([A-Z]{3})[ \t]*(\d{4})\b/gi)].map(d=>{
- const m=months.indexOf(d[2].toUpperCase())+1,day=+d[1],year=+d[3];
+ // Only normalize 0 in an otherwise exact known month token; never change day/year.
+ const dates=[...s.matchAll(/\b(\d{1,2})[ \t]*([A-Z0]{3})[ \t]*(\d{4})\b/gi)].map(d=>{
+ const rawMonth=d[2].toUpperCase(),month=rawMonth.replace(/0/g,'O');
+ const m=months.indexOf(month)+1,day=+d[1],year=+d[3];
+ if(m&&rawMonth!==month)warnings.push('Review OCR formatting: month ('+rawMonth+' → '+month+').');
  return m&&year>=2000&&year<=2099&&day>0&&day<=new Date(Date.UTC(year,m,0)).getUTCDate()?year+'-'+String(m).padStart(2,'0')+'-'+String(day).padStart(2,'0'):null;
  }).filter(Boolean);
  function unique(values,label){

@@ -43,3 +43,12 @@ assert.equal(validateFuel(validFuel),true);
 assert.equal(validateFuel({...validFuel,cost:'0'}),true);
 for(const [k,v] of [['cost',''],['cost',' '],['cost','NaN'],['cost','Infinity'],['cost','-1'],['date',''],['date','2026-02-31'],['liters',''],['liters','0'],['odometer',''],['fuelType',''],['fuelType','unknown']])assert.equal(validateFuel({...validFuel,[k]:v}),false,k+':'+v);
 console.log('Fuel save validation passed');
+
+assert.equal(parse('20N0V2026').date,'2026-11-20');
+assert.ok(parse('20N0V2026').warnings.some(w=>w.includes('month')));
+assert.equal(parse('06 0CT 2026').date,'2026-10-06');
+assert.equal(parse('O60CT2026').date,null);
+assert.equal(parse('20N0V202O').date,null);
+assert.equal(parse('31N0V2026').date,null);
+assert.equal(parse('20N0V2026\n21NOV2026').date,null);
+console.log('Month-only OCR normalization tests passed');
